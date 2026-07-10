@@ -107,12 +107,12 @@
       <!-- ======= SUMMARY CARDS ======= -->
       <section class="summary-grid" aria-label="Account summary">
         <div class="card card-balance" id="card-balance">
-          <div class="card-label"><span class="material-symbols-rounded">account_balance_wallet</span>Available balance</div>
+          <div class="card-label"><span class="material-symbols-rounded">account_balance_wallet</span>Debit card balance</div>
           <div class="card-amount" id="sum-balance">$0.00</div>
           <div class="card-foot" id="sum-balance-foot">Tap to set your balance</div>
         </div>
         <div class="card card-credit" id="card-credit">
-          <div class="card-label"><span class="material-symbols-rounded">credit_card</span>Credit limit</div>
+          <div class="card-label"><span class="material-symbols-rounded">credit_card</span>Credit card balance</div>
           <div class="card-amount" id="sum-credit">$0.00</div>
           <div class="util-bar"><div class="util-fill" id="util-fill"></div></div>
           <div class="card-foot" id="sum-credit-foot">Utilization —</div>
@@ -179,6 +179,7 @@
                 <th data-sort="date" class="sortable">Date <span class="material-symbols-rounded sort-icon">arrow_downward</span></th>
                 <th data-sort="vendor" class="sortable">Vendor <span class="material-symbols-rounded sort-icon"></span></th>
                 <th>Category</th>
+                <th>Card</th>
                 <th data-sort="amount" class="sortable th-amount">Amount <span class="material-symbols-rounded sort-icon"></span></th>
                 <th class="th-actions"></th>
               </tr>
@@ -226,6 +227,12 @@
         <label for="tx-category">Category</label>
         <select id="tx-category"></select>
       </div>
+      <div class="seg-toggle" role="group">
+        <input type="radio" name="tx-cardtype" id="card-debit" value="debit" checked />
+        <label for="card-debit"><span class="material-symbols-rounded">account_balance_wallet</span>Debit</label>
+        <input type="radio" name="tx-cardtype" id="card-credit-radio" value="credit" />
+        <label for="card-credit-radio"><span class="material-symbols-rounded">credit_card</span>Credit</label>
+      </div>
       <div class="field-outlined">
         <label for="tx-note">Note (optional)</label>
         <input type="text" id="tx-note" maxlength="140" placeholder="" />
@@ -240,10 +247,10 @@
   <!-- ============ ACCOUNTS DIALOG (balance & credit limit) ============ -->
   <dialog id="dialog-accounts" class="dialog">
     <form id="form-accounts" method="dialog" novalidate>
-      <h2 class="dialog-title">Balance &amp; credit limit</h2>
-      <p class="dialog-sub">Enter what your CIBC app shows right now. Balance auto-updates as you log transactions.</p>
+      <h2 class="dialog-title">Debit &amp; credit card balances</h2>
+      <p class="dialog-sub">Enter what your CIBC app shows right now. Balances auto-update as you log or import transactions tagged Debit or Credit.</p>
       <div class="field-outlined">
-        <label for="acc-balance">Available balance (CAD)</label>
+        <label for="acc-balance">Debit card balance (CAD)</label>
         <input type="number" id="acc-balance" step="0.01" inputmode="decimal" placeholder="0.00" />
       </div>
       <div class="field-outlined">

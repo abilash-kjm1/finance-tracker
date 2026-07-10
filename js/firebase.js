@@ -39,22 +39,22 @@ function demoBackend() {
     return dt.toISOString().slice(0, 10);
   };
   let txs = [
-    { id: "d1", date: d(0), vendor: "Tim Hortons", category: "Dining", type: "expense", cents: 745, note: "" },
-    { id: "d2", date: d(1), vendor: "Loblaws", category: "Groceries", type: "expense", cents: 8632, note: "weekly groceries" },
-    { id: "d3", date: d(2), vendor: "Presto", category: "Transport", type: "expense", cents: 4000, note: "transit top-up" },
-    { id: "d4", date: d(3), vendor: "Netflix", category: "Entertainment", type: "expense", cents: 1899, note: "" },
-    { id: "d5", date: d(5), vendor: "Payroll Deposit", category: "Other", type: "income", cents: 185000, note: "bi-weekly pay" },
-    { id: "d6", date: d(6), vendor: "Uber Eats", category: "Dining", type: "expense", cents: 3240, note: "" },
-    { id: "d7", date: d(9), vendor: "Shoppers Drug Mart", category: "Health", type: "expense", cents: 2310, note: "" },
-    { id: "d8", date: d(12), vendor: "Amazon.ca", category: "Shopping", type: "expense", cents: 5687, note: "" },
-    { id: "d9", date: d(34), vendor: "Bell Canada", category: "Bills", type: "expense", cents: 9500, note: "internet" },
-    { id: "d10", date: d(36), vendor: "Loblaws", category: "Groceries", type: "expense", cents: 10420, note: "" },
-    { id: "d11", date: d(38), vendor: "Cineplex", category: "Entertainment", type: "expense", cents: 2850, note: "" },
-    { id: "d12", date: d(65), vendor: "Canadian Tire", category: "Shopping", type: "expense", cents: 7823, note: "" },
-    { id: "d13", date: d(68), vendor: "Petro-Canada", category: "Transport", type: "expense", cents: 6200, note: "gas" },
-    { id: "d14", date: d(95), vendor: "Rogers", category: "Bills", type: "expense", cents: 6500, note: "phone" },
+    { id: "d1", date: d(0), vendor: "Tim Hortons", category: "Dining", type: "expense", cardType: "debit", cents: 745, note: "" },
+    { id: "d2", date: d(1), vendor: "Loblaws", category: "Groceries", type: "expense", cardType: "debit", cents: 8632, note: "weekly groceries" },
+    { id: "d3", date: d(2), vendor: "Presto", category: "Transport", type: "expense", cardType: "debit", cents: 4000, note: "transit top-up" },
+    { id: "d4", date: d(3), vendor: "Netflix", category: "Entertainment", type: "expense", cardType: "credit", cents: 1899, note: "" },
+    { id: "d5", date: d(5), vendor: "Payroll Deposit", category: "Other", type: "income", cardType: "debit", cents: 185000, note: "bi-weekly pay" },
+    { id: "d6", date: d(6), vendor: "Uber Eats", category: "Dining", type: "expense", cardType: "credit", cents: 3240, note: "" },
+    { id: "d7", date: d(9), vendor: "Shoppers Drug Mart", category: "Health", type: "expense", cardType: "debit", cents: 2310, note: "" },
+    { id: "d8", date: d(12), vendor: "Amazon.ca", category: "Shopping", type: "expense", cardType: "credit", cents: 5687, note: "" },
+    { id: "d9", date: d(34), vendor: "Bell Canada", category: "Bills", type: "expense", cardType: "debit", cents: 9500, note: "internet" },
+    { id: "d10", date: d(36), vendor: "Loblaws", category: "Groceries", type: "expense", cardType: "debit", cents: 10420, note: "" },
+    { id: "d11", date: d(38), vendor: "Cineplex", category: "Entertainment", type: "expense", cardType: "credit", cents: 2850, note: "" },
+    { id: "d12", date: d(65), vendor: "Canadian Tire", category: "Shopping", type: "expense", cardType: "credit", cents: 7823, note: "" },
+    { id: "d13", date: d(68), vendor: "Petro-Canada", category: "Transport", type: "expense", cardType: "debit", cents: 6200, note: "gas" },
+    { id: "d14", date: d(95), vendor: "Rogers", category: "Bills", type: "expense", cardType: "debit", cents: 6500, note: "phone" },
   ];
-  let settings = { balanceCents: 234580, limitCents: 500000, usedCents: 89060 };
+  let settings = { debitBalanceCents: 234580, debitBalanceAsOf: d(200), limitCents: 500000, usedCents: 89060, usedAsOf: d(200) };
   let txCb = null, settingsCb = null;
   let nextId = 100;
   const emitTx = () => txCb && txCb([...txs]);

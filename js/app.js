@@ -25,6 +25,9 @@ const CATEGORY_ICONS = {
   Other: "category",
 };
 
+const CARD_TYPE_ICONS = { debit: "account_balance_wallet", credit: "credit_card" };
+const CARD_TYPE_LABELS = { debit: "Debit", credit: "Credit" };
+
 // ---------- Utilities ----------
 const $ = (sel) => document.querySelector(sel);
 const moneyFmt = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
@@ -83,7 +86,7 @@ initTheme();
 // ---------- State ----------
 let backend = null;
 let transactions = [];
-let settings = null; // { balanceCents, limitCents, usedCents, balanceAsOf }
+let settings = null; // { debitBalanceCents, debitBalanceAsOf, limitCents, usedCents, usedAsOf }
 let filters = { month: "current", from: "", to: "", categories: new Set(), search: "" };
 let sortBy = { field: "date", dir: "desc" };
 let editingId = null;
@@ -125,14 +128,27 @@ function filteredTransactions() {
   });
 }
 
-function computeBalance() {
-  if (!settings || settings.balanceCents == null) return null;
-  const asOf = settings.balanceAsOf || "1900-01-01";
-  let bal = settings.balanceCents;
+function computeDebitBalance() {
+  if (!settings || settings.debitBalanceCents == null) return null;
+  const asOf = settings.debitBalanceAsOf || "1900-01-01";
+  let bal = settings.debitBalanceCents;
   for (const t of transactions) {
+    if ((t.cardType || "debit") !== "debit") continue;
     if (t.date >= asOf) bal += t.type === "income" ? t.cents : -t.cents;
   }
   return bal;
+}
+
+function computeCreditUsed() {
+  const base = settings?.usedCents ?? 0;
+  const asOf = settings?.usedAsOf;
+  if (!asOf) return base; // no auto-adjustment until saved once via the dialog
+  let used = base;
+  for (const t of transactions) {
+    if (t.cardType !== "credit") continue;
+    if (t.date >= asOf) used += t.type === "expense" ? t.cents : -t.cents;
+  }
+  return Math.max(0, used);
 }
 
 // ---------- Rendering ----------
@@ -153,29 +169,29 @@ function countUp(el, targetCents) {
 }
 
 function renderSummary() {
-  const balance = computeBalance();
+  const balance = computeDebitBalance();
   if (balance == null) {
     $("#sum-balance").textContent = "— —";
-    $("#sum-balance-foot").textContent = "Tap to set your balance";
+    $("#sum-balance-foot").textContent = "Tap to set your debit balance";
   } else {
     countUp($("#sum-balance"), balance);
-    const asOf = settings.balanceAsOf ? `updated from ${shortDate(settings.balanceAsOf)}` : "";
-    $("#sum-balance-foot").textContent = asOf || "Auto-updates as you log transactions";
+    const asOf = settings.debitBalanceAsOf ? `updated from ${shortDate(settings.debitBalanceAsOf)}` : "";
+    $("#sum-balance-foot").textContent = asOf || "Auto-updates as you log debit transactions";
   }
 
   const limit = settings?.limitCents ?? 0;
-  const used = settings?.usedCents ?? 0;
-  $("#sum-credit").textContent = limit ? fmtMoney(limit) : "— —";
+  const used = computeCreditUsed();
+  $("#sum-credit").textContent = limit ? fmtMoney(Math.max(0, limit - used)) : "— —";
   const fill = $("#util-fill");
   if (limit > 0) {
     const pct = Math.min(100, Math.round((used / limit) * 100));
     fill.style.width = pct + "%";
     fill.style.background = pct < 30 ? "var(--util-ok)" : pct < 70 ? "var(--util-warn)" : "var(--util-bad)";
     const hint = pct < 30 ? "healthy" : pct < 70 ? "getting high" : "high — hurts credit score";
-    $("#sum-credit-foot").textContent = `${fmtMoney(used)} used · ${pct}% — ${hint}`;
+    $("#sum-credit-foot").textContent = `${fmtMoney(used)} used of ${fmtMoney(limit)} · ${pct}% — ${hint}`;
   } else {
     fill.style.width = "0%";
-    $("#sum-credit-foot").textContent = "Tap to set your limit";
+    $("#sum-credit-foot").textContent = "Tap to set your credit limit";
   }
 
   // This month vs last month
@@ -246,12 +262,15 @@ function renderTable(list) {
   tbody.innerHTML = list.map((t, i) => {
     const sign = t.type === "expense" ? "−" : "+";
     const catChip = `<span class="cat-chip"><span class="material-symbols-rounded">${CATEGORY_ICONS[t.category] || "category"}</span>${t.category}</span>`;
+    const cardType = t.cardType || "debit";
+    const cardChip = `<span class="card-type-chip tag-${cardType}"><span class="material-symbols-rounded">${CARD_TYPE_ICONS[cardType]}</span>${CARD_TYPE_LABELS[cardType]}</span>`;
     return `<tr data-id="${t.id}" style="animation-delay:${Math.min(i * 25, 250)}ms">
       <td class="td-date">${shortDate(t.date)}</td>
       <td class="td-vendor">${escapeHtml(t.vendor)}${t.note ? `<span class="td-note">${escapeHtml(t.note)}</span>` : ""}</td>
       <td class="td-cat">${catChip}</td>
+      <td class="td-cardtype">${cardChip}</td>
       <td class="td-amount ${t.type}">${sign}${fmtMoney(t.cents)}</td>
-      <td class="td-meta-mobile"><span class="td-date" style="display:inline">${shortDate(t.date)}</span>${catChip}</td>
+      <td class="td-meta-mobile"><span class="td-date" style="display:inline">${shortDate(t.date)}</span>${catChip}${cardChip}</td>
       <td class="td-actions">
         <button class="icon-btn btn-edit" title="Edit" aria-label="Edit"><span class="material-symbols-rounded">edit</span></button>
         <button class="icon-btn btn-delete" title="Delete" aria-label="Delete"><span class="material-symbols-rounded">delete</span></button>
@@ -344,6 +363,7 @@ function openTxDialog(tx = null) {
   $("#tx-category").value = tx?.category || "Other";
   $("#tx-note").value = tx?.note || "";
   (tx?.type === "income" ? $("#type-income") : $("#type-expense")).checked = true;
+  (tx?.cardType === "credit" ? $("#card-credit-radio") : $("#card-debit")).checked = true;
   $("#dialog-tx").showModal();
   if (!tx) $("#tx-amount").focus();
 }
@@ -362,6 +382,7 @@ async function saveTxFromForm(e) {
     vendor,
     category: $("#tx-category").value,
     type: document.querySelector('input[name="tx-type"]:checked').value,
+    cardType: document.querySelector('input[name="tx-cardtype"]:checked').value,
     cents: Math.round(amount * 100),
     note: $("#tx-note").value.trim(),
   };
@@ -381,9 +402,9 @@ async function saveTxFromForm(e) {
 }
 
 function openAccountsDialog() {
-  $("#acc-balance").value = settings?.balanceCents != null ? (computeBalance() / 100).toFixed(2) : "";
+  $("#acc-balance").value = settings?.debitBalanceCents != null ? (computeDebitBalance() / 100).toFixed(2) : "";
   $("#acc-limit").value = settings?.limitCents ? (settings.limitCents / 100).toFixed(2) : "";
-  $("#acc-used").value = settings?.usedCents ? (settings.usedCents / 100).toFixed(2) : "";
+  $("#acc-used").value = computeCreditUsed() ? (computeCreditUsed() / 100).toFixed(2) : "";
   $("#dialog-accounts").showModal();
 }
 
@@ -393,9 +414,9 @@ async function saveAccountsFromForm(e) {
   const bal = $("#acc-balance").value;
   const lim = $("#acc-limit").value;
   const used = $("#acc-used").value;
-  if (bal !== "") { patch.balanceCents = Math.round(parseFloat(bal) * 100); patch.balanceAsOf = todayStr(); }
+  if (bal !== "") { patch.debitBalanceCents = Math.round(parseFloat(bal) * 100); patch.debitBalanceAsOf = todayStr(); }
   if (lim !== "") patch.limitCents = Math.round(parseFloat(lim) * 100);
-  if (used !== "") patch.usedCents = Math.round(parseFloat(used) * 100);
+  if (used !== "") { patch.usedCents = Math.round(parseFloat(used) * 100); patch.usedAsOf = todayStr(); }
   $("#dialog-accounts").close();
   if (!Object.keys(patch).length) return;
   try {

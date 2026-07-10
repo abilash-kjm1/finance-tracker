@@ -14,7 +14,7 @@ const CATEGORY_RULES = [
   [/tim hortons|starbucks|mcdonald|subway|a\s*&?\s*w\b|wendy|pizza|uber\s*eats|skip.?the.?dishes|doordash|restaurant|cafe|coffee|popeyes|kfc|burger|shawarma|sushi|thai|osmow|biryani|dosa|roti|chicken|kairali|saravanaa|ustad ji|chipotle|taco bell|vending/i, "Dining"],
   [/loblaws|no frills|nofrills|walmart|wal-mart|costco|food basics|freshco|metro\b|sobeys|superstore|farm boy|t&t|grocery|supermarket|giant tiger|kibo market|convenie/i, "Groceries"],
   [/presto|\bpres\/|metrolinx|uber(?!\s*eats)|lyft|petro|esso|shell|gas bar|go transit|ttc|via rail|parking|impark|husky|ultramar|canadian tire gas|megabus/i, "Transport"],
-  [/bell|rogers|telus|fido|freedom mobile|koodo|hydro|enbridge|utility|insurance|rent|mortgage|wealthsimple|virgin plus|public mobile|internet|cogeco|affirm canada|niagara region/i, "Bills"],
+  [/bell canada|bell mobility|rogers|telus|fido|freedom mobile|koodo|hydro|enbridge|utility|insurance|mortgage|wealthsimple|virgin plus|public mobile|teksavvy|distributel|cogeco|affirm canada|niagara region/i, "Bills"],
   [/amazon|amzn mktp|alibaba|best buy|canadian tire|ikea|dollarama|dollar tree|winners|marshalls|home depot|shein|temu|aliexpress|ebay|indigo|sport chek|zara|h&m|uniqlo|crocs|lovisa|bluenotes|ups\s*\*|ups store|canada computer/i, "Shopping"],
   [/netflix|spotify|disney|crave|cineplex|cinema|prime video|youtube|playstation|xbox|steam|nintendo|apple\.com|movie|theatre/i, "Entertainment"],
   [/shoppers drug|pharmacy|rexall|dental|clinic|physio|optometr|goodlife|gym|fitness|medical|barber|hair salon|silk hair/i, "Health"],
@@ -23,6 +23,46 @@ const CATEGORY_RULES = [
 export function guessCategory(vendor) {
   for (const [re, cat] of CATEGORY_RULES) if (re.test(vendor)) return cat;
   return "Other";
+}
+
+// Strips CIBC's boilerplate transaction-type prefixes, foreign-exchange
+// suffixes, and long auth/reference numbers so only the merchant name
+// (or transfer recipient) remains.
+const BOILERPLATE_PATTERNS = [
+  /point of sale - visa debit/gi,
+  /point of sale - interac/gi,
+  /intl visa deb/gi,
+  /int visa deb/gi,
+  /visa debit/gi,
+  /retail purchase/gi,
+  /merchandise ret rev/gi,
+  /purchase reversal/gi,
+  /mdse return/gi,
+  /electronic funds transfer/gi,
+  /internet banking/gi,
+  /branch transaction/gi,
+  /preauthorized debit/gi,
+  /^correction\b/gi,
+];
+
+export function cleanVendor(raw) {
+  let v = raw;
+  // Foreign-exchange suffix, e.g. "13.55 USD @ 1.458303"
+  v = v.replace(/\s*[\d,]+\.\d{2}\s*(USD|CAD)\s*@\s*[\d.]+\s*$/i, "");
+  for (const re of BOILERPLATE_PATTERNS) v = v.replace(re, "");
+  // Long auth/reference numbers (6+ consecutive digits), anywhere in the string
+  v = v.replace(/\b\d{6,}\S*/g, "");
+  v = v.replace(/\s+/g, " ").trim();
+  v = v.replace(/^[-/,\s]+/, "").trim();
+  return v || raw.trim();
+}
+
+// CIBC chequing-account CSV exports have 4 columns (date, description,
+// debit, credit); credit-card exports add a 5th column with the masked
+// card number. That column's presence is the reliable signal for which
+// account a row belongs to.
+function detectCardType(cols) {
+  return cols.length >= 5 && cols[4] && cols[4].trim() ? "credit" : "debit";
 }
 
 // Minimal CSV line parser handling quoted fields with commas.
@@ -73,7 +113,8 @@ export function parseCibcCsv(text) {
     const date = parseDate(cols[0]);
     if (!date) { skipped++; continue; } // header row or junk
 
-    const vendor = (cols[1] || "Unknown").replace(/\s+/g, " ").trim() || "Unknown";
+    const rawVendor = (cols[1] || "Unknown").replace(/\s+/g, " ").trim() || "Unknown";
+    const vendor = cleanVendor(rawVendor);
     const debit = parseMoneyToCents(cols[2]);
     const credit = parseMoneyToCents(cols[3]);
 
@@ -82,10 +123,12 @@ export function parseCibcCsv(text) {
     else if (credit != null) { type = "income"; cents = credit; }
     else { skipped++; continue; }
 
-    const category = type === "income" ? "Other" : guessCategory(vendor);
+    const category = type === "income" ? "Other" : guessCategory(rawVendor);
     if (!CATEGORIES.includes(category)) { skipped++; continue; }
 
-    transactions.push({ date, vendor, category, type, cents, note: "" });
+    const cardType = detectCardType(cols);
+
+    transactions.push({ date, vendor, category, type, cents, cardType, note: "" });
   }
   return { transactions, skipped };
 }
