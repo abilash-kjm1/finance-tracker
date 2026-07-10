@@ -3,7 +3,7 @@
 // ============================================================
 
 import { createBackend, isConfigured, isDemo } from "./firebase.js";
-import { parseCibcCsv, exportJson, guessCategory } from "./csv.js";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js";
 import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js";
 
 export const CATEGORIES = [
@@ -469,6 +469,30 @@ async function importCsv() {
   pendingCsv = null;
 }
 
+// One-time migration: re-cleans vendor text on transactions imported
+// before the vendor-cleanup step existed (import doesn't retroactively
+// touch already-saved rows).
+async function cleanUpVendorNames() {
+  const dirty = transactions
+    .map((t) => ({ t, cleaned: cleanVendor(t.vendor) }))
+    .filter(({ t, cleaned }) => cleaned && cleaned !== t.vendor);
+
+  if (!dirty.length) {
+    showSnackbar("Vendor names already clean");
+    return;
+  }
+  showSnackbar(`Cleaning up ${dirty.length} vendor name${dirty.length === 1 ? "" : "s"}…`);
+  try {
+    for (const { t, cleaned } of dirty) {
+      await backend.updateTransaction(t.id, { vendor: cleaned });
+    }
+    showSnackbar(`Cleaned up ${dirty.length} vendor name${dirty.length === 1 ? "" : "s"} ✓`);
+  } catch (err) {
+    console.error(err);
+    showSnackbar("Couldn't finish — check your connection");
+  }
+}
+
 // ---------- Menus ----------
 function toggleMenu(menu) {
   const menus = ["#menu-more", "#menu-account"];
@@ -496,6 +520,10 @@ function wireEvents() {
     toggleMenu("#menu-more");
     exportJson(transactions, settings || {});
     showSnackbar("Backup downloaded");
+  });
+  $("#menu-clean-vendors").addEventListener("click", () => {
+    toggleMenu("#menu-more");
+    cleanUpVendorNames();
   });
 
   // Summary cards open accounts dialog
