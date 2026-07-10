@@ -11,6 +11,9 @@ export const CATEGORIES = [
   "Shopping", "Entertainment", "Health", "Other",
 ];
 
+// Only these Google accounts may use the app. Add more emails if needed.
+const ALLOWED_EMAILS = ["abilashabilash009@gmail.com"];
+
 const CATEGORY_ICONS = {
   Groceries: "grocery",
   Dining: "restaurant",
@@ -577,6 +580,7 @@ function wireEvents() {
 // ---------- Auth / boot ----------
 function showScreen(which) {
   $("#auth-screen").classList.toggle("hidden", which !== "auth");
+  $("#denied-screen").classList.toggle("hidden", which !== "denied");
   $("#setup-screen").classList.toggle("hidden", which !== "setup");
   $("#app").classList.toggle("hidden", which !== "app");
 }
@@ -594,6 +598,7 @@ async function main() {
   if (backend.demo) $("#demo-banner").classList.remove("hidden");
 
   $("#btn-google-signin").addEventListener("click", () => backend.signIn());
+  $("#btn-denied-signout").addEventListener("click", () => backend.signOut());
 
   backend.onAuth((user) => {
     unsubTx?.(); unsubSettings?.();
@@ -603,6 +608,14 @@ async function main() {
       transactions = [];
       settings = null;
       showScreen("auth");
+      return;
+    }
+
+    if (!backend.demo && !ALLOWED_EMAILS.includes((user.email || "").toLowerCase())) {
+      transactions = [];
+      settings = null;
+      $("#denied-email").textContent = user.email || "";
+      showScreen("denied");
       return;
     }
 

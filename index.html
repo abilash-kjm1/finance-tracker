@@ -29,6 +29,19 @@
     </div>
   </section>
 
+  <!-- ============ ACCESS DENIED SCREEN ============ -->
+  <section id="denied-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-logo"><span class="material-symbols-rounded">lock</span></div>
+      <h1 class="auth-title">This tracker is private</h1>
+      <p class="auth-subtitle">Signed in as <strong id="denied-email"></strong>. This account isn't authorized to use this tracker.</p>
+      <button id="btn-denied-signout" class="btn-google">
+        <span class="material-symbols-rounded">logout</span>
+        Sign out and try another account
+      </button>
+    </div>
+  </section>
+
   <!-- ============ SETUP SCREEN (Firebase not configured) ============ -->
   <section id="setup-screen" class="auth-screen hidden">
     <div class="auth-card setup-card">
