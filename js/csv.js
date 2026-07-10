@@ -11,13 +11,13 @@ import { CATEGORIES } from "./app.js";
 
 // Vendor keyword → category guesser (financial-analyst autopilot).
 const CATEGORY_RULES = [
-  [/tim hortons|starbucks|mcdonald|subway|a&w|wendy|pizza|uber\s*eats|skip.?the.?dishes|doordash|restaurant|cafe|coffee|popeyes|kfc|burger|shawarma|sushi|thai|osmow/i, "Dining"],
-  [/loblaws|no frills|nofrills|walmart|costco|food basics|freshco|metro\b|sobeys|superstore|farm boy|t&t|grocery|supermarket|giant tiger/i, "Groceries"],
-  [/presto|uber(?!\s*eats)|lyft|petro|esso|shell|gas bar|go transit|ttc|via rail|parking|impark|husky|ultramar|canadian tire gas/i, "Transport"],
-  [/bell|rogers|telus|fido|freedom mobile|koodo|hydro|enbridge|utility|insurance|rent|mortgage|wealthsimple|virgin plus|public mobile|internet/i, "Bills"],
-  [/amazon|best buy|canadian tire|ikea|dollarama|winners|marshalls|home depot|shein|temu|aliexpress|ebay|indigo|sport chek|zara|h&m|uniqlo/i, "Shopping"],
-  [/netflix|spotify|disney|crave|cineplex|prime video|youtube|playstation|xbox|steam|nintendo|apple\.com|movie|theatre/i, "Entertainment"],
-  [/shoppers drug|pharmacy|rexall|dental|clinic|physio|optometr|goodlife|gym|fitness|medical/i, "Health"],
+  [/tim hortons|starbucks|mcdonald|subway|a\s*&?\s*w\b|wendy|pizza|uber\s*eats|skip.?the.?dishes|doordash|restaurant|cafe|coffee|popeyes|kfc|burger|shawarma|sushi|thai|osmow|biryani|dosa|roti|chicken|kairali|saravanaa|ustad ji|chipotle|taco bell|vending/i, "Dining"],
+  [/loblaws|no frills|nofrills|walmart|wal-mart|costco|food basics|freshco|metro\b|sobeys|superstore|farm boy|t&t|grocery|supermarket|giant tiger|kibo market|convenie/i, "Groceries"],
+  [/presto|\bpres\/|metrolinx|uber(?!\s*eats)|lyft|petro|esso|shell|gas bar|go transit|ttc|via rail|parking|impark|husky|ultramar|canadian tire gas|megabus/i, "Transport"],
+  [/bell|rogers|telus|fido|freedom mobile|koodo|hydro|enbridge|utility|insurance|rent|mortgage|wealthsimple|virgin plus|public mobile|internet|cogeco|affirm canada|niagara region/i, "Bills"],
+  [/amazon|amzn mktp|alibaba|best buy|canadian tire|ikea|dollarama|dollar tree|winners|marshalls|home depot|shein|temu|aliexpress|ebay|indigo|sport chek|zara|h&m|uniqlo|crocs|lovisa|bluenotes|ups\s*\*|ups store|canada computer/i, "Shopping"],
+  [/netflix|spotify|disney|crave|cineplex|cinema|prime video|youtube|playstation|xbox|steam|nintendo|apple\.com|movie|theatre/i, "Entertainment"],
+  [/shoppers drug|pharmacy|rexall|dental|clinic|physio|optometr|goodlife|gym|fitness|medical|barber|hair salon|silk hair/i, "Health"],
 ];
 
 export function guessCategory(vendor) {
