@@ -8,6 +8,8 @@
 // 4. Project settings (gear icon) → Your apps → Web app (</>) → register,
 //    then copy the firebaseConfig object and paste it below.
 // 5. In Firestore → Rules, paste the contents of firestore.rules.
+// 6. Build → App Check → register your web app with the reCAPTCHA v3
+//    provider, then paste the site key into RECAPTCHA_SITE_KEY below.
 // ============================================================
 
 const firebaseConfig = {
@@ -19,6 +21,11 @@ const firebaseConfig = {
   appId: "1:385123316925:web:91b1fe7d0d007b2c73f3d4",
   measurementId: "G-Z3CB3PH7JD",
 };
+
+// App Check: proves requests come from your real deployed app, not a
+// copy of this public code running elsewhere. Get this key from
+// Firebase console → Build → App Check → your web app → reCAPTCHA v3.
+const RECAPTCHA_SITE_KEY = "PASTE_YOUR_RECAPTCHA_V3_SITE_KEY";
 
 export const isConfigured = !firebaseConfig.apiKey.startsWith("PASTE_");
 export const isDemo = new URLSearchParams(location.search).has("demo");
@@ -89,6 +96,22 @@ async function firebaseBackend() {
   } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
 
   const app = initializeApp(firebaseConfig);
+
+  if (!RECAPTCHA_SITE_KEY.startsWith("PASTE_")) {
+    const { initializeAppCheck, ReCaptchaV3Provider } = await import(
+      "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js"
+    );
+    // Lets you test locally before enforcement is turned on in the console:
+    // https://firebase.google.com/docs/app-check/web/debug-provider
+    if (location.hostname === "localhost") {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
+
   const auth = getAuth(app);
   // Offline cache: keeps working without internet, syncs when back online.
   const db = initializeFirestore(app, {

@@ -40,6 +40,15 @@ In **Authentication → Settings → Authorized domains**, make sure these are l
 - `localhost` (already there by default)
 - `YOUR_USERNAME.github.io` (add this after deploying — step below)
 
+### 6. Lock the app to your account(s)
+This app is public on GitHub, so anything with your `firebaseConfig` could theoretically try to use it. Two things already stop that from mattering:
+- **Firestore rules** ([`firestore.rules`](firestore.rules)) only allow read/write for emails you list — edit the array there and in `ALLOWED_EMAILS` at the top of [`js/app.js`](js/app.js) to add/remove people.
+- **App Check** (optional but recommended) blocks any request that isn't coming from your real deployed site, even before it reaches your Firestore rules:
+  1. **Build → App Check** in the Firebase console → **Apps** → register your web app.
+  2. Choose **reCAPTCHA v3** as the provider → it'll give you a **site key**.
+  3. Paste that key into `RECAPTCHA_SITE_KEY` in [`js/firebase.js`](js/firebase.js).
+  4. Back in App Check, under **APIs**, set **Firestore** to **Enforce** (do this *after* pasting the key and confirming sign-in still works, otherwise you'll lock yourself out too).
+
 ---
 
 ## Run locally
