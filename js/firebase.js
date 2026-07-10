@@ -25,7 +25,7 @@ const firebaseConfig = {
 // App Check: proves requests come from your real deployed app, not a
 // copy of this public code running elsewhere. Get this key from
 // Firebase console → Build → App Check → your web app → reCAPTCHA v3.
-const RECAPTCHA_SITE_KEY = "PASTE_YOUR_RECAPTCHA_V3_SITE_KEY";
+const RECAPTCHA_SITE_KEY = "6LfZLEwtAAAAAHBarXTsHwaNGkCXr-v5qe3U5YS1";
 
 export const isConfigured = !firebaseConfig.apiKey.startsWith("PASTE_");
 export const isDemo = new URLSearchParams(location.search).has("demo");
