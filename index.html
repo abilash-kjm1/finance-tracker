@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b57d0" />
+  <title>Finance Tracker</title>
+  <meta name="description" content="Personal CIBC spending tracker — Material You style" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:opsz,wght@17..18,400..700&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- ============ AUTH / WELCOME SCREEN ============ -->
+  <section id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-logo"><span class="material-symbols-rounded">savings</span></div>
+      <h1 class="auth-title">Finance Tracker</h1>
+      <p class="auth-subtitle">Track your CIBC spending anywhere. Your data syncs securely across all your devices.</p>
+      <button id="btn-google-signin" class="btn-google">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.6 15.1 18.9 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+        Continue with Google
+      </button>
+      <p class="auth-note">Free forever · Only you can see your data</p>
+    </div>
+  </section>
+
+  <!-- ============ SETUP SCREEN (Firebase not configured) ============ -->
+  <section id="setup-screen" class="auth-screen hidden">
+    <div class="auth-card setup-card">
+      <div class="auth-logo"><span class="material-symbols-rounded">build_circle</span></div>
+      <h1 class="auth-title">One-time setup needed</h1>
+      <p class="auth-subtitle">Connect your free Firebase project so your data can sync across devices:</p>
+      <ol class="setup-steps">
+        <li>Go to <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> and create a project (free).</li>
+        <li>Enable <strong>Authentication → Sign-in method → Google</strong>.</li>
+        <li>Create a <strong>Cloud Firestore</strong> database (production mode).</li>
+        <li>Project settings → Add a <strong>Web app</strong> → copy the config.</li>
+        <li>Paste it into <code>js/firebase.js</code> replacing the placeholder.</li>
+      </ol>
+      <p class="auth-note">Full walkthrough in README.md · Or try the UI with <a href="?demo=1">demo mode</a></p>
+    </div>
+  </section>
+
+  <!-- ============ MAIN APP ============ -->
+  <div id="app" class="app hidden">
+    <!-- Top app bar -->
+    <header class="top-bar">
+      <div class="top-bar-title">
+        <span class="material-symbols-rounded top-bar-logo">savings</span>
+        <span class="app-name">Finance Tracker</span>
+      </div>
+      <div class="top-bar-actions">
+        <button id="btn-theme" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">
+          <span class="material-symbols-rounded">dark_mode</span>
+        </button>
+        <button id="btn-more" class="icon-btn" title="More options" aria-label="More options">
+          <span class="material-symbols-rounded">more_vert</span>
+        </button>
+        <button id="btn-avatar" class="avatar-btn" title="Account">
+          <img id="user-avatar" alt="" referrerpolicy="no-referrer" />
+          <span id="user-initial" class="avatar-fallback"></span>
+        </button>
+        <!-- Overflow menu -->
+        <div id="menu-more" class="menu hidden">
+          <button class="menu-item" id="menu-import-csv"><span class="material-symbols-rounded">upload_file</span>Import CIBC CSV</button>
+          <button class="menu-item" id="menu-export-json"><span class="material-symbols-rounded">download</span>Export backup (JSON)</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" id="menu-edit-accounts"><span class="material-symbols-rounded">tune</span>Edit balance &amp; limit</button>
+        </div>
+        <!-- Account menu -->
+        <div id="menu-account" class="menu hidden">
+          <div class="menu-header">
+            <span id="menu-user-name"></span>
+            <span id="menu-user-email" class="menu-sub"></span>
+          </div>
+          <div class="menu-divider"></div>
+          <button class="menu-item" id="menu-signout"><span class="material-symbols-rounded">logout</span>Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- Demo banner -->
+      <div id="demo-banner" class="demo-banner hidden">
+        <span class="material-symbols-rounded">science</span>
+        Demo mode — data is not saved. Set up Firebase to sync for real.
+      </div>
+
+      <!-- ======= SUMMARY CARDS ======= -->
+      <section class="summary-grid" aria-label="Account summary">
+        <div class="card card-balance" id="card-balance">
+          <div class="card-label"><span class="material-symbols-rounded">account_balance_wallet</span>Available balance</div>
+          <div class="card-amount" id="sum-balance">$0.00</div>
+          <div class="card-foot" id="sum-balance-foot">Tap to set your balance</div>
+        </div>
+        <div class="card card-credit" id="card-credit">
+          <div class="card-label"><span class="material-symbols-rounded">credit_card</span>Credit limit</div>
+          <div class="card-amount" id="sum-credit">$0.00</div>
+          <div class="util-bar"><div class="util-fill" id="util-fill"></div></div>
+          <div class="card-foot" id="sum-credit-foot">Utilization —</div>
+        </div>
+        <div class="card card-month" id="card-month">
+          <div class="card-label"><span class="material-symbols-rounded">calendar_month</span>Spent this month</div>
+          <div class="card-amount" id="sum-month">$0.00</div>
+          <div class="card-foot" id="sum-month-foot">—</div>
+        </div>
+      </section>
+
+      <!-- ======= FILTERS ======= -->
+      <section class="filters" aria-label="Filters">
+        <div class="filter-row">
+          <div class="field field-select">
+            <span class="material-symbols-rounded field-icon">event</span>
+            <select id="filter-month" aria-label="Filter by month"></select>
+          </div>
+          <div class="field field-search">
+            <span class="material-symbols-rounded field-icon">search</span>
+            <input type="search" id="filter-search" placeholder="Search vendor…" aria-label="Search vendor" />
+          </div>
+          <button id="btn-range" class="chip chip-action">
+            <span class="material-symbols-rounded">date_range</span><span id="range-label">Date range</span>
+          </button>
+        </div>
+        <div id="range-row" class="filter-row range-row hidden">
+          <div class="field"><label class="field-label" for="range-from">From</label><input type="date" id="range-from" /></div>
+          <div class="field"><label class="field-label" for="range-to">To</label><input type="date" id="range-to" /></div>
+          <button id="btn-range-clear" class="chip chip-action"><span class="material-symbols-rounded">close</span>Clear</button>
+        </div>
+        <div class="chip-row" id="category-chips" role="group" aria-label="Filter by category"></div>
+      </section>
+
+      <!-- ======= CHARTS ======= -->
+      <section class="charts-grid" aria-label="Charts">
+        <div class="card chart-card">
+          <h2 class="chart-title">Spending by category</h2>
+          <div class="chart-wrap doughnut-wrap">
+            <canvas id="chart-category"></canvas>
+            <div class="doughnut-center">
+              <div class="doughnut-total" id="doughnut-total">$0</div>
+              <div class="doughnut-sub">total spent</div>
+            </div>
+          </div>
+          <div id="chart-category-empty" class="chart-empty hidden">No spending in this period 🎉</div>
+        </div>
+        <div class="card chart-card">
+          <h2 class="chart-title">Monthly trend</h2>
+          <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+        </div>
+      </section>
+
+      <!-- ======= TRANSACTIONS ======= -->
+      <section class="tx-section" aria-label="Transactions">
+        <div class="tx-header">
+          <h2 class="section-title">Transactions <span id="tx-count" class="tx-count"></span></h2>
+          <div class="tx-total" id="tx-total"></div>
+        </div>
+        <div class="tx-table-wrap card">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th data-sort="date" class="sortable">Date <span class="material-symbols-rounded sort-icon">arrow_downward</span></th>
+                <th data-sort="vendor" class="sortable">Vendor <span class="material-symbols-rounded sort-icon"></span></th>
+                <th>Category</th>
+                <th data-sort="amount" class="sortable th-amount">Amount <span class="material-symbols-rounded sort-icon"></span></th>
+                <th class="th-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="tx-tbody"></tbody>
+          </table>
+          <div id="tx-empty" class="tx-empty hidden">
+            <span class="material-symbols-rounded">receipt_long</span>
+            <p>No transactions yet.<br />Tap <strong>+</strong> to add one, or import your CIBC CSV.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- FAB -->
+    <button id="fab-add" class="fab" aria-label="Add transaction">
+      <span class="material-symbols-rounded">add</span>
+      <span class="fab-label">Add</span>
+    </button>
+  </div>
+
+  <!-- ============ ADD/EDIT TRANSACTION DIALOG ============ -->
+  <dialog id="dialog-tx" class="dialog">
+    <form id="form-tx" method="dialog" novalidate>
+      <h2 class="dialog-title" id="dialog-tx-title">Add transaction</h2>
+      <div class="seg-toggle" role="group">
+        <input type="radio" name="tx-type" id="type-expense" value="expense" checked />
+        <label for="type-expense"><span class="material-symbols-rounded">arrow_upward</span>Expense</label>
+        <input type="radio" name="tx-type" id="type-income" value="income" />
+        <label for="type-income"><span class="material-symbols-rounded">arrow_downward</span>Income</label>
+      </div>
+      <div class="field-outlined">
+        <label for="tx-amount">Amount (CAD)</label>
+        <input type="number" id="tx-amount" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00" required />
+      </div>
+      <div class="field-outlined">
+        <label for="tx-vendor">Vendor</label>
+        <input type="text" id="tx-vendor" placeholder="e.g. Tim Hortons" maxlength="80" required />
+      </div>
+      <div class="field-outlined">
+        <label for="tx-date">Date</label>
+        <input type="date" id="tx-date" required />
+      </div>
+      <div class="field-outlined">
+        <label for="tx-category">Category</label>
+        <select id="tx-category"></select>
+      </div>
+      <div class="field-outlined">
+        <label for="tx-note">Note (optional)</label>
+        <input type="text" id="tx-note" maxlength="140" placeholder="" />
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-text" id="btn-tx-cancel">Cancel</button>
+        <button type="submit" class="btn-filled" id="btn-tx-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ ACCOUNTS DIALOG (balance & credit limit) ============ -->
+  <dialog id="dialog-accounts" class="dialog">
+    <form id="form-accounts" method="dialog" novalidate>
+      <h2 class="dialog-title">Balance &amp; credit limit</h2>
+      <p class="dialog-sub">Enter what your CIBC app shows right now. Balance auto-updates as you log transactions.</p>
+      <div class="field-outlined">
+        <label for="acc-balance">Available balance (CAD)</label>
+        <input type="number" id="acc-balance" step="0.01" inputmode="decimal" placeholder="0.00" />
+      </div>
+      <div class="field-outlined">
+        <label for="acc-limit">Credit limit (CAD)</label>
+        <input type="number" id="acc-limit" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
+      </div>
+      <div class="field-outlined">
+        <label for="acc-used">Credit used so far (CAD)</label>
+        <input type="number" id="acc-used" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-text" id="btn-acc-cancel">Cancel</button>
+        <button type="submit" class="btn-filled">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============ CSV IMPORT DIALOG ============ -->
+  <dialog id="dialog-csv" class="dialog">
+    <div>
+      <h2 class="dialog-title">Import CIBC CSV</h2>
+      <p class="dialog-sub">In CIBC online banking, open your account → Download transactions → CSV, then choose the file here.</p>
+      <input type="file" id="csv-file" accept=".csv,text/csv" class="hidden" />
+      <button id="btn-csv-pick" class="btn-tonal btn-wide"><span class="material-symbols-rounded">upload_file</span>Choose CSV file</button>
+      <div id="csv-preview" class="csv-preview hidden"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-text" id="btn-csv-cancel">Cancel</button>
+        <button type="button" class="btn-filled hidden" id="btn-csv-import">Import</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Snackbar -->
+  <div id="snackbar" class="snackbar hidden">
+    <span id="snackbar-text"></span>
+    <button id="snackbar-action" class="snackbar-btn hidden">Undo</button>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
