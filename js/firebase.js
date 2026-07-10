@@ -11,12 +11,13 @@
 // ============================================================
 
 const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY",
-  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
-  projectId: "PASTE_YOUR_PROJECT_ID",
-  storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
-  messagingSenderId: "PASTE_YOUR_SENDER_ID",
-  appId: "PASTE_YOUR_APP_ID",
+  apiKey: "AIzaSyCxEWaVL0OmX_dJzqQwsfRRlm8yDSUo5qg",
+  authDomain: "finance-766b0.firebaseapp.com",
+  projectId: "finance-766b0",
+  storageBucket: "finance-766b0.firebasestorage.app",
+  messagingSenderId: "385123316925",
+  appId: "1:385123316925:web:91b1fe7d0d007b2c73f3d4",
+  measurementId: "G-Z3CB3PH7JD",
 };
 
 export const isConfigured = !firebaseConfig.apiKey.startsWith("PASTE_");
