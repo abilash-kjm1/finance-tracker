@@ -289,16 +289,11 @@ function renderTable(list) {
   // Update sort indicators
   document.querySelectorAll(".tx-table th.sortable").forEach((th) => {
     const icon = th.querySelector(".sort-icon");
-    const badge = th.querySelector(".sort-priority");
     const idx = sortKeys.findIndex((k) => k.field === th.dataset.sort);
-    if (idx === -1) {
-      icon.textContent = "";
-      if (badge) badge.textContent = "";
-    } else {
-      icon.textContent = sortKeys[idx].dir === "asc" ? "arrow_upward" : "arrow_downward";
-      if (badge) badge.textContent = sortKeys.length > 1 ? String(idx + 1) : "";
-    }
+    icon.textContent = idx === -1 ? "" : sortKeys[idx].dir === "asc" ? "arrow_upward" : "arrow_downward";
   });
+  const resetBtn = $("#btn-reset-sort");
+  if (resetBtn) resetBtn.classList.toggle("hidden", sortKeys.length <= 1);
 }
 
 function renderCharts() {
@@ -664,6 +659,11 @@ function wireEvents() {
   $("#btn-delete-confirm").addEventListener("click", confirmDeleteTransactions);
   $("#btn-delete-cancel").addEventListener("click", () => $("#dialog-delete").close());
 
+  $("#btn-reset-sort").addEventListener("click", () => {
+    sortKeys = [{ field: "date", dir: "desc" }];
+    renderTable(filteredTransactions());
+  });
+
   // Filters
   $("#filter-month").addEventListener("change", (e) => {
     filters.month = e.target.value;
@@ -725,22 +725,18 @@ function wireEvents() {
     }
   });
 
-  // Sorting — click sorts by just this column; shift+click layers it in
-  // as an additional tie-breaker (e.g. date, then vendor).
+  // Sorting — clicking a column adds it to the active sort (or toggles
+  // its direction if already active), so multiple columns can be sorted
+  // at once, e.g. date ascending and vendor ascending together.
   document.querySelectorAll(".tx-table th.sortable").forEach((th) => {
-    th.addEventListener("click", (e) => {
+    th.addEventListener("click", () => {
       const field = th.dataset.sort;
       const defaultDir = field === "vendor" || field === "category" || field === "cardtype" ? "asc" : "desc";
       const idx = sortKeys.findIndex((k) => k.field === field);
 
-      if (e.shiftKey) {
-        if (idx === -1) sortKeys.push({ field, dir: defaultDir });
-        else sortKeys[idx].dir = sortKeys[idx].dir === "asc" ? "desc" : "asc";
-      } else if (sortKeys.length === 1 && idx === 0) {
-        sortKeys[0].dir = sortKeys[0].dir === "asc" ? "desc" : "asc";
-      } else {
-        sortKeys = [{ field, dir: defaultDir }];
-      }
+      if (idx === -1) sortKeys.push({ field, dir: defaultDir });
+      else sortKeys[idx].dir = sortKeys[idx].dir === "asc" ? "desc" : "asc";
+
       renderTable(filteredTransactions());
     });
   });
