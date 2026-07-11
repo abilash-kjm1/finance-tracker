@@ -584,13 +584,13 @@ a { color: var(--md-primary); }
 }
 
 /* ---------- Ask AI ---------- */
-.dialog-ai { width: min(480px, calc(100vw - 32px)); }
-.ai-panel { display: flex; flex-direction: column; gap: 14px; max-height: 78vh; }
+.dialog-ai { width: min(560px, calc(100vw - 24px)); padding: 20px; }
+.ai-panel { display: flex; flex-direction: column; gap: 14px; max-height: 82vh; }
 .ai-messages {
   display: flex; flex-direction: column; gap: 14px;
   overflow-y: auto;
-  max-height: 50vh;
-  min-height: 120px;
+  flex: 1;
+  min-height: 200px;
   padding-right: 2px;
 }
 .ai-msg { display: flex; gap: 10px; align-items: flex-start; animation: row-in .25s ease backwards; }
@@ -616,18 +616,31 @@ a { color: var(--md-primary); }
 .ai-dot:nth-child(2) { animation-delay: .15s; }
 .ai-dot:nth-child(3) { animation-delay: .3s; }
 @keyframes ai-dot-pulse { 0%, 80%, 100% { opacity: .3; transform: scale(.85); } 40% { opacity: 1; transform: scale(1); } }
-.ai-input-row { display: flex; gap: 8px; align-items: center; }
+.ai-input-row { display: flex; gap: 8px; align-items: stretch; flex: none; }
 .ai-input-row input {
-  flex: 1; height: 46px;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: auto;
+  min-height: 52px;
+  height: 52px;
+  box-sizing: border-box;
   border: 1px solid var(--md-outline);
   border-radius: 100px;
   background: transparent;
-  padding: 0 16px;
+  padding: 0 18px;
   outline: none;
+  font-size: 16px;
+  line-height: 50px;
 }
 .ai-input-row input:focus { border-color: var(--md-primary); box-shadow: 0 0 0 1px var(--md-primary); }
-.ai-input-row .icon-btn { background: var(--md-primary); color: var(--md-on-primary); flex: none; }
+.ai-input-row .icon-btn { background: var(--md-primary); color: var(--md-on-primary); flex: none; width: 52px; height: 52px; }
 .ai-input-row .icon-btn:hover { box-shadow: var(--md-shadow-1); }
+
+@media (max-width: 680px) {
+  .dialog-ai { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; margin: 0; padding: 16px; }
+  .ai-panel { max-height: calc(100dvh - 32px); }
+  .ai-messages { min-height: 0; }
+}
 
 /* ---------- Snackbar ---------- */
 .snackbar {

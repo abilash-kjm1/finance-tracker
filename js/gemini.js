@@ -9,7 +9,9 @@
 // not be shipped in the public repo.
 // ============================================================
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+// "-latest" alias avoids hard-pinning to a model version that Google
+// later retires for new API keys.
+const GEMINI_MODEL = "gemini-flash-latest";
 const STORAGE_KEY = "ft-gemini-key";
 
 export function getGeminiKey() {
