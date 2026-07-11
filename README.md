@@ -5,7 +5,8 @@ A personal spending tracker for CIBC (or any Canadian bank), built with **Materi
 - **Top cards:** available balance, credit limit with utilization bar, this-month spending vs last month
 - **Charts:** spending by category (doughnut) + 6-month trend (bar)
 - **Transactions:** sortable table (stacked cards on mobile), month/date-range/category/search filters
-- **CIBC CSV import** with automatic category guessing (Tim Hortons → Dining, Presto → Transport, …)
+- **CIBC CSV import** with automatic category guessing (Tim Hortons → Dining, Presto → Transport, …) and duplicate detection for monthly re-imports
+- **Ask AI**: natural-language questions about your spending, answered by Gemini using your real transaction data
 - **Google sign-in + cloud sync** via Firebase (free tier), with offline support
 - Light & dark themes, ripple effects, animated numbers
 
@@ -62,6 +63,14 @@ python -m http.server 8080
 ```
 
 Open http://localhost:8080 and sign in with Google.
+
+### 7. (Optional) Enable "Ask AI"
+1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and create a free Gemini API key (same or different Google account, doesn't matter).
+2. Open [`js/gemini.js`](js/gemini.js) and paste the key over the placeholder `GEMINI_API_KEY`.
+3. **Restrict the key to your own domains** — this key ships in your public source code, unlike Firebase's. In AI Studio, open the key's settings → **Website restrictions** → add `localhost` and `YOUR_USERNAME.github.io`. Without this, anyone who copies your public repo could burn through your free quota.
+4. Tap the ✨ icon in the top bar and ask things like *"How much did I spend on dining last month?"* or *"What's my biggest expense category?"*
+
+Your questions and transaction data (vendor, amount, date, category) are sent to Google's Gemini API to generate an answer — that's inherent to using a cloud AI model. Nothing about your bank account or login is included.
 
 ---
 

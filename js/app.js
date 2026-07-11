@@ -2,9 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=7";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=7";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=7";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=8";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=8";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=8";
+import { askGemini, isGeminiConfigured } from "./gemini.js?v=8";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -94,6 +95,8 @@ let sortKeys = [];
 let editingId = null;
 let pendingCsv = null;
 let undoTx = null;
+let aiHistory = []; // [{ role: "user"|"model", text }]
+let aiBusy = false;
 let snackbarTimer = null;
 
 // ---------- Derived data ----------
@@ -586,6 +589,60 @@ async function confirmDeleteTransactions() {
   }
 }
 
+// ---------- Ask AI ----------
+function appendAiMessage(role, text, { loading = false, error = false } = {}) {
+  const wrap = $("#ai-messages");
+  const row = document.createElement("div");
+  row.className = `ai-msg ai-msg-${role}${error ? " ai-msg-error" : ""}${loading ? " ai-msg-loading" : ""}`;
+  const icon = role === "user" ? "" : `<span class="material-symbols-rounded ai-msg-icon">auto_awesome</span>`;
+  const bubble = loading
+    ? `<div class="ai-msg-bubble"><span class="ai-dot"></span><span class="ai-dot"></span><span class="ai-dot"></span></div>`
+    : `<div class="ai-msg-bubble">${escapeHtml(text)}</div>`;
+  row.innerHTML = icon + bubble;
+  wrap.appendChild(row);
+  wrap.scrollTop = wrap.scrollHeight;
+  return row;
+}
+
+function openAiDialog() {
+  const configured = isGeminiConfigured || backend?.demo;
+  $("#ai-setup").classList.toggle("hidden", configured);
+  $("#ai-chat").classList.toggle("hidden", !configured);
+  $("#dialog-ai").showModal();
+  if (configured) $("#ai-question").focus();
+}
+
+async function submitAiQuestion(e) {
+  e.preventDefault();
+  if (aiBusy) return;
+  const input = $("#ai-question");
+  const question = input.value.trim();
+  if (!question) return;
+  input.value = "";
+
+  appendAiMessage("user", question);
+  const loadingRow = appendAiMessage("model", "", { loading: true });
+  aiBusy = true;
+  $("#btn-ai-send").disabled = true;
+
+  try {
+    const answer = isGeminiConfigured
+      ? await askGemini(question, transactions, settings, aiHistory)
+      : "This is demo mode, so I can't actually call Gemini here — but once you add your API key, I'll answer using your real transaction data.";
+    loadingRow.remove();
+    appendAiMessage("model", answer);
+    aiHistory.push({ role: "user", text: question }, { role: "model", text: answer });
+    if (aiHistory.length > 20) aiHistory = aiHistory.slice(-20); // keep recent context only
+  } catch (err) {
+    console.error(err);
+    loadingRow.remove();
+    appendAiMessage("model", `Couldn't get an answer: ${err.message}`, { error: true });
+  } finally {
+    aiBusy = false;
+    $("#btn-ai-send").disabled = false;
+  }
+}
+
 // ---------- Menus ----------
 function toggleMenu(menu) {
   const menus = ["#menu-more", "#menu-account"];
@@ -666,6 +723,11 @@ function wireEvents() {
     sortKeys = [];
     renderTable(filteredTransactions());
   });
+
+  // Ask AI
+  $("#btn-ask-ai").addEventListener("click", openAiDialog);
+  $("#btn-ai-close").addEventListener("click", () => $("#dialog-ai").close());
+  $("#form-ai-ask").addEventListener("submit", submitAiQuestion);
 
   // Filters
   $("#filter-month").addEventListener("change", (e) => {
