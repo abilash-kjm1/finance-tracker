@@ -1,20 +1,29 @@
 // ============================================================
 // Gemini Q&A — ask natural-language questions about your spending.
 //
-// >>> ONE-TIME SETUP <<<
-// 1. Go to https://aistudio.google.com/apikey and create a free API key
-//    (same Google account is fine; separate from your Firebase project).
-// 2. Paste it below, replacing the placeholder.
-// 3. IMPORTANT: this key ships in your public source code. Restrict it
-//    to your own domains so nobody else can use your free quota:
-//    Google AI Studio → your key → Edit → "Website restrictions" →
-//    add localhost and your GitHub Pages domain.
+// The API key is entered directly in the app UI (Ask AI → setup) and
+// kept only in this browser's localStorage — it is never written to
+// source code or committed to git. This matters because Gemini API
+// keys created as "service-account-bound" keys can't be restricted to
+// specific websites the way the Firebase config key can, so it must
+// not be shipped in the public repo.
 // ============================================================
 
-const GEMINI_API_KEY = "PASTE_YOUR_GEMINI_API_KEY";
 const GEMINI_MODEL = "gemini-2.5-flash";
+const STORAGE_KEY = "ft-gemini-key";
 
-export const isGeminiConfigured = !GEMINI_API_KEY.startsWith("PASTE_");
+export function getGeminiKey() {
+  try { return localStorage.getItem(STORAGE_KEY) || ""; } catch { return ""; }
+}
+export function setGeminiKey(key) {
+  try { localStorage.setItem(STORAGE_KEY, key.trim()); } catch {}
+}
+export function clearGeminiKey() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+}
+export function hasGeminiKey() {
+  return getGeminiKey().length > 0;
+}
 
 const SYSTEM_PREAMBLE = `You are a helpful personal finance assistant built into a CIBC spending
 tracker for a user in Canada. You answer questions about the user's own transaction data below.
@@ -47,6 +56,9 @@ function formatAccountsForPrompt(settings) {
 
 // history: [{ role: "user"|"model", text }]. Returns the model's reply text.
 export async function askGemini(question, transactions, settings, history) {
+  const apiKey = getGeminiKey();
+  if (!apiKey) throw new Error("No Gemini API key saved yet.");
+
   const systemInstruction = {
     parts: [{
       text: `${SYSTEM_PREAMBLE}\n\nAccount summary: ${formatAccountsForPrompt(settings)}\n\nTransactions:\n${formatTransactionsForPrompt(transactions)}`,
@@ -58,7 +70,7 @@ export async function askGemini(question, transactions, settings, history) {
   ];
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

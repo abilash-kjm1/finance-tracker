@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=8";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=8";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=8";
-import { askGemini, isGeminiConfigured } from "./gemini.js?v=8";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=9";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=9";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=9";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=9";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -604,12 +604,34 @@ function appendAiMessage(role, text, { loading = false, error = false } = {}) {
   return row;
 }
 
-function openAiDialog() {
-  const configured = isGeminiConfigured || backend?.demo;
+function refreshAiDialogView() {
+  const configured = hasGeminiKey() || backend?.demo;
   $("#ai-setup").classList.toggle("hidden", configured);
   $("#ai-chat").classList.toggle("hidden", !configured);
+  $("#btn-ai-forget-key").classList.toggle("hidden", !hasGeminiKey());
+}
+
+function openAiDialog() {
+  refreshAiDialogView();
   $("#dialog-ai").showModal();
-  if (configured) $("#ai-question").focus();
+  if (hasGeminiKey() || backend?.demo) $("#ai-question").focus();
+  else $("#ai-key-input").focus();
+}
+
+function saveAiKey(e) {
+  e.preventDefault();
+  const key = $("#ai-key-input").value.trim();
+  if (!key) return;
+  setGeminiKey(key);
+  $("#ai-key-input").value = "";
+  refreshAiDialogView();
+  $("#ai-question").focus();
+}
+
+function forgetAiKey() {
+  clearGeminiKey();
+  aiHistory = [];
+  refreshAiDialogView();
 }
 
 async function submitAiQuestion(e) {
@@ -626,7 +648,7 @@ async function submitAiQuestion(e) {
   $("#btn-ai-send").disabled = true;
 
   try {
-    const answer = isGeminiConfigured
+    const answer = hasGeminiKey()
       ? await askGemini(question, transactions, settings, aiHistory)
       : "This is demo mode, so I can't actually call Gemini here — but once you add your API key, I'll answer using your real transaction data.";
     loadingRow.remove();
@@ -728,6 +750,8 @@ function wireEvents() {
   $("#btn-ask-ai").addEventListener("click", openAiDialog);
   $("#btn-ai-close").addEventListener("click", () => $("#dialog-ai").close());
   $("#form-ai-ask").addEventListener("submit", submitAiQuestion);
+  $("#form-ai-key").addEventListener("submit", saveAiKey);
+  $("#btn-ai-forget-key").addEventListener("click", forgetAiKey);
 
   // Filters
   $("#filter-month").addEventListener("change", (e) => {
