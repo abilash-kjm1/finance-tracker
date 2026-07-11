@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=24";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=24";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=24";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=24";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=25";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=25";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=25";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=25";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -211,10 +211,17 @@ function filteredTransactions() {
   let list = dateScopedTransactions();
 
   if (filters.categories.size) list = list.filter((t) => filters.categories.has(t.category));
-  if (filters.vendors.size) list = list.filter((t) => filters.vendors.has(t.vendor));
-  if (filters.search) {
+
+  // Vendor chips and the search box both narrow by vendor, so treat them
+  // as one combined OR: selecting "Rajeevmalik" while searching "PayProp"
+  // should show both, not the (usually empty) intersection of the two.
+  if (filters.vendors.size || filters.search) {
     const q = filters.search.toLowerCase();
-    list = list.filter((t) => t.vendor.toLowerCase().includes(q) || (t.note || "").toLowerCase().includes(q));
+    list = list.filter((t) => {
+      const matchesSearch = !!filters.search && (t.vendor.toLowerCase().includes(q) || (t.note || "").toLowerCase().includes(q));
+      const matchesVendor = filters.vendors.has(t.vendor);
+      return matchesSearch || matchesVendor;
+    });
   }
 
   if (!sortKeys.length) return list; // no sort chosen — natural backend order
