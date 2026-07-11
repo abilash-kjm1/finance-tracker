@@ -2,9 +2,9 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=6";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=6";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=6";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=7";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=7";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=7";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",

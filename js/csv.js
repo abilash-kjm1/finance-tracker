@@ -7,7 +7,7 @@
 // Some exports use YYYY-MM-DD. Both are handled, header row optional.
 // ============================================================
 
-import { CATEGORIES } from "./app.js?v=6";
+import { CATEGORIES } from "./app.js?v=7";
 
 // Vendor keyword → category guesser (financial-analyst autopilot).
 const CATEGORY_RULES = [
@@ -42,8 +42,32 @@ const BOILERPLATE_PATTERNS = [
   /internet banking/gi,
   /branch transaction/gi,
   /preauthorized debit/gi,
-  /^correction\b/gi,
+  /interac e-transfer/gi,
+  /e-transfer/gi,
+  /fulfill request/gi,
+  /internet transfer/gi,
+  /^\s*pay\b/gi,
+  /^\s*correction\b/gi,
 ];
+
+// Recognized brands/services get normalized to one clean, consistent
+// name regardless of how CIBC mangled the raw description. Order
+// matters — more specific patterns (e.g. "Uber Eats") must come before
+// their broader parent ("Uber").
+const VENDOR_ALIASES = [
+  [/doordash/i, "DoorDash"],
+  [/uber\s*eats/i, "Uber Eats"],
+  [/\blyft\b/i, "Lyft"],
+  [/\bmetrolinx\b|\bgo transit\b/i, "GO Transit"],
+  [/\bttc\b/i, "TTC"],
+  [/\bpresto\b|\bpres\//i, "Presto"],
+  [/\buber\b/i, "Uber"],
+];
+
+function normalizeVendor(v) {
+  for (const [re, name] of VENDOR_ALIASES) if (re.test(v)) return name;
+  return v;
+}
 
 export function cleanVendor(raw) {
   let v = raw;
@@ -54,7 +78,8 @@ export function cleanVendor(raw) {
   v = v.replace(/\b\d{6,}\S*/g, "");
   v = v.replace(/\s+/g, " ").trim();
   v = v.replace(/^[-/,\s]+/, "").trim();
-  return v || raw.trim();
+  v = v || raw.trim();
+  return normalizeVendor(v);
 }
 
 // CIBC chequing-account CSV exports have 4 columns (date, description,
