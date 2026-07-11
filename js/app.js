@@ -2,9 +2,9 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=5";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=5";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=5";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=6";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=6";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=6";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -88,9 +88,9 @@ let backend = null;
 let transactions = [];
 let settings = null; // { debitBalanceCents, debitBalanceAsOf, limitCents, usedCents, usedAsOf }
 let filters = { month: "current", from: "", to: "", categories: new Set(), search: "" };
-// Ordered list of sort keys — index 0 is primary. Shift+click a column
-// header to layer it in as an additional tie-breaker.
-let sortKeys = [{ field: "date", dir: "desc" }];
+// Ordered list of active sort columns — empty means "no sort applied,
+// show transactions in the order the backend returns them."
+let sortKeys = [];
 let editingId = null;
 let pendingCsv = null;
 let undoTx = null;
@@ -120,7 +120,10 @@ function filteredTransactions() {
     list = list.filter((t) => t.vendor.toLowerCase().includes(q) || (t.note || "").toLowerCase().includes(q));
   }
 
-  // Always fall back to date so equal ties still land in a stable order.
+  if (!sortKeys.length) return list; // no sort chosen — natural backend order
+
+  // Once at least one column is chosen, fall back to date so ties land
+  // in a stable order.
   const keys = sortKeys.some((k) => k.field === "date") ? sortKeys : [...sortKeys, { field: "date", dir: "desc" }];
   return [...list].sort((a, b) => {
     for (const { field, dir } of keys) {
@@ -293,7 +296,7 @@ function renderTable(list) {
     icon.textContent = idx === -1 ? "" : sortKeys[idx].dir === "asc" ? "arrow_upward" : "arrow_downward";
   });
   const resetBtn = $("#btn-reset-sort");
-  if (resetBtn) resetBtn.classList.toggle("hidden", sortKeys.length <= 1);
+  if (resetBtn) resetBtn.classList.toggle("hidden", sortKeys.length === 0);
 }
 
 function renderCharts() {
@@ -660,7 +663,7 @@ function wireEvents() {
   $("#btn-delete-cancel").addEventListener("click", () => $("#dialog-delete").close());
 
   $("#btn-reset-sort").addEventListener("click", () => {
-    sortKeys = [{ field: "date", dir: "desc" }];
+    sortKeys = [];
     renderTable(filteredTransactions());
   });
 
