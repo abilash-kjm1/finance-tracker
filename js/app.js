@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=12";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=12";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=12";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=12";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=13";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=13";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=13";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=13";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -590,10 +590,16 @@ async function confirmDeleteTransactions() {
 }
 
 // ---------- Ask AI ----------
-// Minimal, safe markdown → HTML for Gemini's replies (bold + bullet lists).
+// Recognizes "Month D, YYYY" / "Mon D, YYYY" / "YYYY-MM-DD" style dates.
+const AI_DATE_RE = /\b((?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)\.?\s+\d{1,2},?\s*\d{4}|\d{4}-\d{2}-\d{2})\b/g;
+
+// Minimal, safe markdown → HTML for Gemini's replies (bold + bullet lists,
+// plus color-coding dates and Income/Expense labels for scannability).
 // Text is HTML-escaped first, so only the tags this function inserts exist.
 function markdownLiteToHtml(raw) {
-  const text = escapeHtml(raw).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  let text = escapeHtml(raw).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/\((Income|Expense)\)/g, (_, kind) => `(<span class="ai-tag-${kind.toLowerCase()}">${kind}</span>)`);
+  text = text.replace(AI_DATE_RE, '<span class="ai-date">$1</span>');
   const lines = text.split("\n");
   let html = "";
   let inList = false;

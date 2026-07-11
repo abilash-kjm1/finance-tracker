@@ -618,6 +618,10 @@ a { color: var(--md-primary); }
 .ai-msg-bubble li:last-child { margin-bottom: 0; }
 .ai-msg-bubble strong { color: var(--md-primary); font-weight: 700; }
 .ai-msg-user .ai-msg-bubble strong { color: var(--md-on-secondary-container); }
+.ai-date { color: #7c4dff; font-weight: 600; }
+:root[data-theme="dark"] .ai-date { color: #c4b5fd; }
+.ai-tag-income { color: var(--income); font-weight: 700; }
+.ai-tag-expense { color: var(--expense); font-weight: 700; }
 .ai-msg-error .ai-msg-bubble { background: var(--md-error-container); color: var(--md-on-error-container); }
 .ai-msg-loading .ai-msg-bubble { display: flex; gap: 4px; align-items: center; padding: 14px; }
 .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; animation: ai-dot-pulse 1.1s ease-in-out infinite; }
