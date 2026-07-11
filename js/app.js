@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=14";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=14";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=14";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=14";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=15";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=15";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=15";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=15";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -88,7 +88,7 @@ initTheme();
 let backend = null;
 let transactions = [];
 let settings = null; // { debitBalanceCents, debitBalanceAsOf, limitCents, usedCents, usedAsOf }
-let filters = { month: "current", from: "", to: "", categories: new Set(), search: "" };
+let filters = { month: "current", from: "", to: "", categories: new Set(), vendors: new Set(), search: "" };
 // Ordered list of active sort columns — empty means "no sort applied,
 // show transactions in the order the backend returns them."
 let sortKeys = [];
@@ -100,7 +100,9 @@ let aiBusy = false;
 let snackbarTimer = null;
 
 // ---------- Derived data ----------
-function filteredTransactions() {
+// Just the month/date-range scoping — used both for the main table and
+// to compute which vendor chips are worth showing for the current period.
+function dateScopedTransactions() {
   const now = todayStr();
   const curMonth = monthKey(now);
   let list = transactions;
@@ -116,8 +118,25 @@ function filteredTransactions() {
   } else if (filters.month !== "all") {
     list = list.filter((t) => monthKey(t.date) === filters.month);
   }
+  return list;
+}
+
+// Top vendors by transaction count within the current date scope —
+// powers the dynamic "Top vendors this period" chips.
+function topVendorsForPeriod(limit = 14) {
+  const counts = new Map();
+  for (const t of dateScopedTransactions()) counts.set(t.vendor, (counts.get(t.vendor) || 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([vendor]) => vendor);
+}
+
+function filteredTransactions() {
+  let list = dateScopedTransactions();
 
   if (filters.categories.size) list = list.filter((t) => filters.categories.has(t.category));
+  if (filters.vendors.size) list = list.filter((t) => filters.vendors.has(t.vendor));
   if (filters.search) {
     const q = filters.search.toLowerCase();
     list = list.filter((t) => t.vendor.toLowerCase().includes(q) || (t.note || "").toLowerCase().includes(q));
@@ -255,6 +274,18 @@ function renderCategoryChips() {
   ).join("");
 }
 
+function renderVendorChips() {
+  const vendors = topVendorsForPeriod();
+  // Keep any currently-selected vendor visible even if it drops out of
+  // the top list after a filter change, so the active state stays honest.
+  for (const v of filters.vendors) if (!vendors.includes(v)) vendors.push(v);
+
+  $("#vendor-chips-label").classList.toggle("hidden", vendors.length === 0);
+  $("#vendor-chips").innerHTML = vendors
+    .map((v) => `<button class="chip ${filters.vendors.has(v) ? "selected" : ""}" data-vendor="${escapeHtml(v)}">${escapeHtml(v)}</button>`)
+    .join("");
+}
+
 function renderTable(list) {
   const tbody = $("#tx-tbody");
   const empty = $("#tx-empty");
@@ -344,6 +375,7 @@ function renderAll() {
   renderSummary();
   renderMonthOptions();
   renderCategoryChips();
+  renderVendorChips();
   renderTable(filteredTransactions());
   renderCharts();
 }
@@ -796,8 +828,10 @@ function wireEvents() {
   $("#filter-month").addEventListener("change", (e) => {
     filters.month = e.target.value;
     filters.from = filters.to = "";
+    filters.vendors.clear();
     $("#range-from").value = $("#range-to").value = "";
     $("#range-row").classList.add("hidden");
+    renderVendorChips();
     rerenderFiltered();
   });
   $("#filter-search").addEventListener("input", (e) => {
@@ -808,14 +842,18 @@ function wireEvents() {
   const onRange = () => {
     filters.from = $("#range-from").value;
     filters.to = $("#range-to").value;
+    filters.vendors.clear();
+    renderVendorChips();
     rerenderFiltered();
   };
   $("#range-from").addEventListener("change", onRange);
   $("#range-to").addEventListener("change", onRange);
   $("#btn-range-clear").addEventListener("click", () => {
     filters.from = filters.to = "";
+    filters.vendors.clear();
     $("#range-from").value = $("#range-to").value = "";
     $("#range-row").classList.add("hidden");
+    renderVendorChips();
     rerenderFiltered();
   });
 
@@ -825,6 +863,16 @@ function wireEvents() {
     if (!chip) return;
     const cat = chip.dataset.cat;
     filters.categories.has(cat) ? filters.categories.delete(cat) : filters.categories.add(cat);
+    chip.classList.toggle("selected");
+    rerenderFiltered();
+  });
+
+  // Vendor chips (delegated)
+  $("#vendor-chips").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    const vendor = chip.dataset.vendor;
+    filters.vendors.has(vendor) ? filters.vendors.delete(vendor) : filters.vendors.add(vendor);
     chip.classList.toggle("selected");
     rerenderFiltered();
   });
