@@ -366,6 +366,7 @@ a { color: var(--md-primary); }
 
 .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip-row-label { font-size: 12.5px; font-weight: 500; color: var(--md-on-surface-variant); margin: 2px 0 -6px 4px; }
+
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   height: 34px; padding: 0 14px;
@@ -383,6 +384,30 @@ a { color: var(--md-primary); }
   background: var(--md-secondary-container);
   color: var(--md-on-secondary-container);
   border-color: transparent;
+}
+
+/* Vendor chips colored to match the real brand (DoorDash red, Uber
+   black, Netflix red, etc.) via a --chip-color custom property set
+   inline per chip. Lightened in dark mode so darker brand colors
+   (e.g. Uber's near-black) stay legible against a dark surface. Placed
+   after the base .chip rules so it wins the equal-specificity tie. */
+.chip-branded {
+  border-color: var(--chip-color);
+  color: var(--chip-color);
+}
+.chip-branded.selected {
+  background-color: var(--chip-bg-light);
+  border-color: transparent;
+  color: var(--chip-color);
+}
+:root[data-theme="dark"] .chip-branded {
+  --chip-color-legible: color-mix(in srgb, var(--chip-color) 65%, white 35%);
+  border-color: var(--chip-color-legible);
+  color: var(--chip-color-legible);
+}
+:root[data-theme="dark"] .chip-branded.selected {
+  background-color: var(--chip-bg-dark);
+  color: var(--chip-color-legible);
 }
 .chip-action { height: 46px; border-radius: 100px; }
 

@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=16";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=16";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=16";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=16";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=21";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=21";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=21";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=21";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -28,6 +28,65 @@ const CATEGORY_ICONS = {
 
 const CARD_TYPE_ICONS = { debit: "account_balance_wallet", credit: "credit_card" };
 const CARD_TYPE_LABELS = { debit: "Debit", credit: "Credit" };
+
+// Known brands → their real brand color, matched case-insensitively
+// against the (already-cleaned) vendor name. Anything unmatched falls
+// back to the default neutral chip styling.
+const VENDOR_BRAND_COLORS = [
+  [/doordash/i, "#EB1700"],
+  [/uber eats/i, "#06C167"],
+  [/\buber\b/i, "#1A1A1A"],
+  [/\blyft\b/i, "#EA0B8C"],
+  [/presto/i, "#00A9E0"],
+  [/go transit|metrolinx/i, "#00853F"],
+  [/\bttc\b/i, "#DA251D"],
+  [/netflix/i, "#E50914"],
+  [/spotify/i, "#1DB954"],
+  [/amazon|amzn/i, "#FF9900"],
+  [/costco/i, "#E31837"],
+  [/walmart|wal-mart/i, "#0071CE"],
+  [/tim hortons/i, "#C8102E"],
+  [/starbucks/i, "#00704A"],
+  [/mcdonald/i, "#DA291C"],
+  [/rogers/i, "#D22630"],
+  [/\bbell canada\b|\bbell mobility\b/i, "#00549A"],
+  [/telus/i, "#4B286D"],
+  [/fido/i, "#EE3A29"],
+  [/koodo/i, "#00AEEF"],
+  [/freedom mobile/i, "#EE7623"],
+  [/public mobile/i, "#EC008C"],
+  [/virgin plus/i, "#E10A0A"],
+  [/shoppers drug mart/i, "#EC1C24"],
+  [/cineplex/i, "#E4002B"],
+  [/apple\.com/i, "#A2AAAD"],
+  [/petro-?canada/i, "#ED1C24"],
+  [/canadian tire/i, "#D3161B"],
+  [/dollar tree/i, "#00A650"],
+  [/dollarama/i, "#007A3D"],
+  [/best buy/i, "#0046BE"],
+  [/home depot/i, "#F96302"],
+  [/\bikea\b/i, "#0058A3"],
+  [/h&m/i, "#E50010"],
+  [/youtube/i, "#FF0000"],
+  [/playstation/i, "#003791"],
+  [/\bxbox\b/i, "#107C10"],
+  [/nintendo/i, "#E60012"],
+  [/\bsteam\b/i, "#1B2838"],
+  [/disney/i, "#113CCF"],
+];
+
+function vendorBrandColor(vendor) {
+  for (const [re, color] of VENDOR_BRAND_COLORS) if (re.test(vendor)) return color;
+  return null;
+}
+
+// Precompute rgba() tints in JS rather than relying on CSS color-mix()
+// with a `transparent` endpoint, which some engines fail to repaint
+// correctly when driven by a var()-based custom property.
+function hexToRgbaString(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
 
 // ---------- Utilities ----------
 const $ = (sel) => document.querySelector(sel);
@@ -278,7 +337,14 @@ function renderVendorChips() {
 
   $("#vendor-chips-label").classList.toggle("hidden", vendors.length === 0);
   $("#vendor-chips").innerHTML = vendors
-    .map((v) => `<button class="chip ${filters.vendors.has(v) ? "selected" : ""}" data-vendor="${escapeHtml(v)}">${escapeHtml(v)}</button>`)
+    .map((v) => {
+      const color = vendorBrandColor(v);
+      const cls = `chip${filters.vendors.has(v) ? " selected" : ""}${color ? " chip-branded" : ""}`;
+      const style = color
+        ? ` style="--chip-color:${color};--chip-bg-light:${hexToRgbaString(color, 0.2)};--chip-bg-dark:${hexToRgbaString(color, 0.3)}"`
+        : "";
+      return `<button class="${cls}"${style} data-vendor="${escapeHtml(v)}">${escapeHtml(v)}</button>`;
+    })
     .join("");
 }
 
