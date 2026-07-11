@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=15";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=15";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=15";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=15";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=16";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=16";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=16";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=16";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -121,15 +121,11 @@ function dateScopedTransactions() {
   return list;
 }
 
-// Top vendors by transaction count within the current date scope —
-// powers the dynamic "Top vendors this period" chips.
-function topVendorsForPeriod(limit = 14) {
-  const counts = new Map();
-  for (const t of dateScopedTransactions()) counts.set(t.vendor, (counts.get(t.vendor) || 0) + 1);
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([vendor]) => vendor);
+// Every distinct vendor within the current date scope, A→Z — powers the
+// dynamic "Vendors this period" chips.
+function topVendorsForPeriod() {
+  const vendors = new Set(dateScopedTransactions().map((t) => t.vendor));
+  return [...vendors].sort((a, b) => a.localeCompare(b));
 }
 
 function filteredTransactions() {
