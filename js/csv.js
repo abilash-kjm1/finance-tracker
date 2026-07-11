@@ -7,7 +7,7 @@
 // Some exports use YYYY-MM-DD. Both are handled, header row optional.
 // ============================================================
 
-import { CATEGORIES } from "./app.js";
+import { CATEGORIES } from "./app.js?v=5";
 
 // Vendor keyword → category guesser (financial-analyst autopilot).
 const CATEGORY_RULES = [
