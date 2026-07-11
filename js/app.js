@@ -88,7 +88,9 @@ let backend = null;
 let transactions = [];
 let settings = null; // { debitBalanceCents, debitBalanceAsOf, limitCents, usedCents, usedAsOf }
 let filters = { month: "current", from: "", to: "", categories: new Set(), search: "" };
-let sortBy = { field: "date", dir: "desc" };
+// Ordered list of sort keys — index 0 is primary. Shift+click a column
+// header to layer it in as an additional tie-breaker.
+let sortKeys = [{ field: "date", dir: "desc" }];
 let editingId = null;
 let pendingCsv = null;
 let undoTx = null;
@@ -118,15 +120,19 @@ function filteredTransactions() {
     list = list.filter((t) => t.vendor.toLowerCase().includes(q) || (t.note || "").toLowerCase().includes(q));
   }
 
-  const dir = sortBy.dir === "asc" ? 1 : -1;
+  // Always fall back to date so equal ties still land in a stable order.
+  const keys = sortKeys.some((k) => k.field === "date") ? sortKeys : [...sortKeys, { field: "date", dir: "desc" }];
   return [...list].sort((a, b) => {
-    let cmp;
-    if (sortBy.field === "amount") cmp = (a.type === "expense" ? -a.cents : a.cents) - (b.type === "expense" ? -b.cents : b.cents);
-    else if (sortBy.field === "vendor") cmp = a.vendor.localeCompare(b.vendor);
-    else if (sortBy.field === "category") cmp = a.category.localeCompare(b.category) || a.date.localeCompare(b.date);
-    else if (sortBy.field === "cardtype") cmp = (a.cardType || "debit").localeCompare(b.cardType || "debit") || a.date.localeCompare(b.date);
-    else cmp = a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
-    return cmp * dir;
+    for (const { field, dir } of keys) {
+      let cmp;
+      if (field === "amount") cmp = (a.type === "expense" ? -a.cents : a.cents) - (b.type === "expense" ? -b.cents : b.cents);
+      else if (field === "vendor") cmp = a.vendor.localeCompare(b.vendor);
+      else if (field === "category") cmp = a.category.localeCompare(b.category);
+      else if (field === "cardtype") cmp = (a.cardType || "debit").localeCompare(b.cardType || "debit");
+      else cmp = a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+      if (cmp !== 0) return dir === "asc" ? cmp : -cmp;
+    }
+    return 0;
   });
 }
 
@@ -283,7 +289,15 @@ function renderTable(list) {
   // Update sort indicators
   document.querySelectorAll(".tx-table th.sortable").forEach((th) => {
     const icon = th.querySelector(".sort-icon");
-    icon.textContent = th.dataset.sort === sortBy.field ? (sortBy.dir === "asc" ? "arrow_upward" : "arrow_downward") : "";
+    const badge = th.querySelector(".sort-priority");
+    const idx = sortKeys.findIndex((k) => k.field === th.dataset.sort);
+    if (idx === -1) {
+      icon.textContent = "";
+      if (badge) badge.textContent = "";
+    } else {
+      icon.textContent = sortKeys[idx].dir === "asc" ? "arrow_upward" : "arrow_downward";
+      if (badge) badge.textContent = sortKeys.length > 1 ? String(idx + 1) : "";
+    }
   });
 }
 
@@ -711,12 +725,22 @@ function wireEvents() {
     }
   });
 
-  // Sorting
+  // Sorting — click sorts by just this column; shift+click layers it in
+  // as an additional tie-breaker (e.g. date, then vendor).
   document.querySelectorAll(".tx-table th.sortable").forEach((th) => {
-    th.addEventListener("click", () => {
+    th.addEventListener("click", (e) => {
       const field = th.dataset.sort;
-      if (sortBy.field === field) sortBy.dir = sortBy.dir === "asc" ? "desc" : "asc";
-      else sortBy = { field, dir: field === "vendor" ? "asc" : "desc" };
+      const defaultDir = field === "vendor" || field === "category" || field === "cardtype" ? "asc" : "desc";
+      const idx = sortKeys.findIndex((k) => k.field === field);
+
+      if (e.shiftKey) {
+        if (idx === -1) sortKeys.push({ field, dir: defaultDir });
+        else sortKeys[idx].dir = sortKeys[idx].dir === "asc" ? "desc" : "asc";
+      } else if (sortKeys.length === 1 && idx === 0) {
+        sortKeys[0].dir = sortKeys[0].dir === "asc" ? "desc" : "asc";
+      } else {
+        sortKeys = [{ field, dir: defaultDir }];
+      }
       renderTable(filteredTransactions());
     });
   });
