@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=22";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=22";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=22";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=22";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=23";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=23";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=23";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=23";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -182,10 +182,24 @@ function dateScopedTransactions() {
 }
 
 // Every distinct vendor within the current date scope, A→Z — powers the
-// dynamic "Vendors this period" chips.
+// dynamic "Vendors this period" chips. Capped so a large "All time"
+// import (thousands of transactions, possibly with un-normalized
+// vendor text) can't render enough chips to lock up the browser.
+const MAX_VENDOR_CHIPS = 150;
 function topVendorsForPeriod() {
-  const vendors = new Set(dateScopedTransactions().map((t) => t.vendor));
-  return [...vendors].sort((a, b) => a.localeCompare(b));
+  const counts = new Map();
+  for (const t of dateScopedTransactions()) counts.set(t.vendor, (counts.get(t.vendor) || 0) + 1);
+
+  let vendors = [...counts.keys()];
+  let truncated = false;
+  if (vendors.length > MAX_VENDOR_CHIPS) {
+    truncated = true;
+    vendors = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_VENDOR_CHIPS)
+      .map(([v]) => v);
+  }
+  return { vendors: vendors.sort((a, b) => a.localeCompare(b)), truncated };
 }
 
 function filteredTransactions() {
@@ -331,13 +345,16 @@ function renderCategoryChips() {
 }
 
 function renderVendorChips() {
-  const vendors = topVendorsForPeriod();
+  const { vendors, truncated } = topVendorsForPeriod();
   // Keep any currently-selected vendor visible even if it drops out of
   // the top list after a filter change, so the active state stays honest.
   for (const v of filters.vendors) if (!vendors.includes(v)) vendors.push(v);
 
   const toggle = $("#vendor-chips-toggle");
   toggle.classList.toggle("hidden", vendors.length === 0);
+  toggle.querySelector(".chip-row-toggle-text").textContent = truncated
+    ? `Vendors this period (top ${MAX_VENDOR_CHIPS} — run "Clean up vendor names" to consolidate more)`
+    : "Vendors this period";
   // Auto-expand while a vendor filter is active, so its chip stays visible.
   const expanded = vendorChipsExpanded || filters.vendors.size > 0;
   toggle.setAttribute("aria-expanded", String(expanded));
