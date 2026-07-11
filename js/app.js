@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=11";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=11";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=11";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=11";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=12";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=12";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=12";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=12";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -590,14 +590,36 @@ async function confirmDeleteTransactions() {
 }
 
 // ---------- Ask AI ----------
+// Minimal, safe markdown → HTML for Gemini's replies (bold + bullet lists).
+// Text is HTML-escaped first, so only the tags this function inserts exist.
+function markdownLiteToHtml(raw) {
+  const text = escapeHtml(raw).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const lines = text.split("\n");
+  let html = "";
+  let inList = false;
+  for (const line of lines) {
+    const bullet = line.match(/^\s*[*-]\s+(.*)/);
+    if (bullet) {
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += `<li>${bullet[1]}</li>`;
+    } else {
+      if (inList) { html += "</ul>"; inList = false; }
+      if (line.trim()) html += `<p>${line}</p>`;
+    }
+  }
+  if (inList) html += "</ul>";
+  return html;
+}
+
 function appendAiMessage(role, text, { loading = false, error = false } = {}) {
   const wrap = $("#ai-messages");
   const row = document.createElement("div");
   row.className = `ai-msg ai-msg-${role}${error ? " ai-msg-error" : ""}${loading ? " ai-msg-loading" : ""}`;
   const icon = role === "user" ? "" : `<span class="material-symbols-rounded ai-msg-icon">auto_awesome</span>`;
-  const bubble = loading
-    ? `<div class="ai-msg-bubble"><span class="ai-dot"></span><span class="ai-dot"></span><span class="ai-dot"></span></div>`
-    : `<div class="ai-msg-bubble">${escapeHtml(text)}</div>`;
+  let bubble;
+  if (loading) bubble = `<div class="ai-msg-bubble"><span class="ai-dot"></span><span class="ai-dot"></span><span class="ai-dot"></span></div>`;
+  else if (role === "model" && !error) bubble = `<div class="ai-msg-bubble">${markdownLiteToHtml(text)}</div>`;
+  else bubble = `<div class="ai-msg-bubble">${escapeHtml(text)}</div>`;
   row.innerHTML = icon + bubble;
   wrap.appendChild(row);
   wrap.scrollTop = wrap.scrollHeight;
