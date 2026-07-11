@@ -511,6 +511,13 @@ a { color: var(--md-primary); }
 }
 .tx-empty .material-symbols-rounded { font-size: 44px; opacity: .5; display: block; margin-bottom: 10px; }
 
+.tx-pagination {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px 0 4px;
+}
+.tx-pagination .icon-btn:disabled { opacity: .35; pointer-events: none; }
+.pagination-label { font-size: 13px; color: var(--md-on-surface-variant); font-variant-numeric: tabular-nums; }
+
 /* ---------- FAB ---------- */
 .fab {
   position: fixed;

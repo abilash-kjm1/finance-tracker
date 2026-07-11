@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=23";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=23";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=23";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=23";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=24";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=24";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=24";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=24";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -158,6 +158,11 @@ let aiHistory = []; // [{ role: "user"|"model", text }]
 let aiBusy = false;
 let snackbarTimer = null;
 let vendorChipsExpanded = false;
+// Rendering thousands of <tr> at once (e.g. "All time" on a large import)
+// is what actually freezes the browser — paginate so only one page of
+// rows ever hits the DOM.
+const ROWS_PER_PAGE = 100;
+let tablePage = 0;
 
 // ---------- Derived data ----------
 // Just the month/date-range scoping — used both for the main table and
@@ -386,11 +391,17 @@ function renderTable(list) {
   if (!list.length) {
     tbody.innerHTML = "";
     empty.classList.remove("hidden");
+    renderPagination(0, 0);
     return;
   }
   empty.classList.add("hidden");
 
-  tbody.innerHTML = list.map((t, i) => {
+  const pageCount = Math.max(1, Math.ceil(list.length / ROWS_PER_PAGE));
+  tablePage = Math.min(tablePage, pageCount - 1);
+  const pageList = list.slice(tablePage * ROWS_PER_PAGE, (tablePage + 1) * ROWS_PER_PAGE);
+  renderPagination(tablePage, pageCount);
+
+  tbody.innerHTML = pageList.map((t, i) => {
     const sign = t.type === "expense" ? "−" : "+";
     const catChip = `<span class="cat-chip"><span class="material-symbols-rounded">${CATEGORY_ICONS[t.category] || "category"}</span>${t.category}</span>`;
     const cardType = t.cardType || "debit";
@@ -417,6 +428,24 @@ function renderTable(list) {
   });
   const resetBtn = $("#btn-reset-sort");
   if (resetBtn) resetBtn.classList.toggle("hidden", sortKeys.length === 0);
+}
+
+function renderPagination(page, pageCount) {
+  const wrap = $("#tx-pagination");
+  if (!wrap) return;
+  if (pageCount <= 1) {
+    wrap.classList.add("hidden");
+    wrap.innerHTML = "";
+    return;
+  }
+  wrap.classList.remove("hidden");
+  wrap.innerHTML = `
+    <button class="icon-btn" id="btn-page-prev" ${page === 0 ? "disabled" : ""} aria-label="Previous page"><span class="material-symbols-rounded">chevron_left</span></button>
+    <span class="pagination-label">Page ${page + 1} of ${pageCount}</span>
+    <button class="icon-btn" id="btn-page-next" ${page >= pageCount - 1 ? "disabled" : ""} aria-label="Next page"><span class="material-symbols-rounded">chevron_right</span></button>
+  `;
+  $("#btn-page-prev").addEventListener("click", () => { tablePage = Math.max(0, tablePage - 1); renderTable(filteredTransactions()); });
+  $("#btn-page-next").addEventListener("click", () => { tablePage += 1; renderTable(filteredTransactions()); });
 }
 
 function renderCharts() {
@@ -467,6 +496,7 @@ function renderAll() {
 }
 
 function rerenderFiltered() {
+  tablePage = 0;
   renderTable(filteredTransactions());
   renderCharts();
 }
@@ -900,6 +930,7 @@ function wireEvents() {
 
   $("#btn-reset-sort").addEventListener("click", () => {
     sortKeys = [];
+    tablePage = 0;
     renderTable(filteredTransactions());
   });
 
@@ -1003,6 +1034,7 @@ function wireEvents() {
       if (idx === -1) sortKeys.push({ field, dir: defaultDir });
       else sortKeys[idx].dir = sortKeys[idx].dir === "asc" ? "desc" : "asc";
 
+      tablePage = 0;
       renderTable(filteredTransactions());
     });
   });
