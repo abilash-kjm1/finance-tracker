@@ -283,7 +283,7 @@ a { color: var(--md-primary); }
 .summary-grid .card:nth-child(3) { animation-delay: .14s; }
 @keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-.card-balance { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.card-balance { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
 .card-credit  { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .card-month   { background: var(--md-error-container); color: var(--md-on-error-container); }
 
@@ -502,6 +502,11 @@ a { color: var(--md-primary); }
 .btn-tonal { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .btn-tonal:hover { box-shadow: var(--md-shadow-1); }
 .btn-wide { width: 100%; }
+.btn-danger { background: var(--md-error); color: var(--md-on-error); }
+.btn-filled:disabled { opacity: .4; pointer-events: none; }
+.delete-range-fields { display: flex; gap: 12px; }
+.menu-item-danger { color: var(--md-error); }
+.menu-item-danger .material-symbols-rounded { color: var(--md-error); }
 
 /* Outlined text fields */
 .field-outlined { display: flex; flex-direction: column; gap: 6px; }

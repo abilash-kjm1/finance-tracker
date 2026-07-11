@@ -85,6 +85,7 @@
           <button class="menu-item" id="menu-clean-vendors"><span class="material-symbols-rounded">auto_fix_high</span>Clean up vendor names</button>
           <div class="menu-divider"></div>
           <button class="menu-item" id="menu-edit-accounts"><span class="material-symbols-rounded">tune</span>Edit balance &amp; limit</button>
+          <button class="menu-item menu-item-danger" id="menu-delete-tx"><span class="material-symbols-rounded">delete_sweep</span>Delete transactions</button>
         </div>
         <!-- Account menu -->
         <div id="menu-account" class="menu hidden">
@@ -179,8 +180,8 @@
               <tr>
                 <th data-sort="date" class="sortable">Date <span class="material-symbols-rounded sort-icon">arrow_downward</span></th>
                 <th data-sort="vendor" class="sortable">Vendor <span class="material-symbols-rounded sort-icon"></span></th>
-                <th>Category</th>
-                <th>Card</th>
+                <th data-sort="category" class="sortable">Category <span class="material-symbols-rounded sort-icon"></span></th>
+                <th data-sort="cardtype" class="sortable">Card <span class="material-symbols-rounded sort-icon"></span></th>
                 <th data-sort="amount" class="sortable th-amount">Amount <span class="material-symbols-rounded sort-icon"></span></th>
                 <th class="th-actions"></th>
               </tr>
@@ -280,6 +281,35 @@
       <div class="dialog-actions">
         <button type="button" class="btn-text" id="btn-csv-cancel">Cancel</button>
         <button type="button" class="btn-filled hidden" id="btn-csv-import">Import</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ============ DELETE TRANSACTIONS DIALOG ============ -->
+  <dialog id="dialog-delete" class="dialog">
+    <div>
+      <h2 class="dialog-title">Delete transactions</h2>
+      <p class="dialog-sub">This removes transactions from your account. You'll get a chance to undo right after.</p>
+      <div class="seg-toggle" role="group">
+        <input type="radio" name="delete-scope" id="delete-scope-all" value="all" checked />
+        <label for="delete-scope-all"><span class="material-symbols-rounded">delete_sweep</span>All transactions</label>
+        <input type="radio" name="delete-scope" id="delete-scope-range" value="range" />
+        <label for="delete-scope-range"><span class="material-symbols-rounded">date_range</span>Date range</label>
+      </div>
+      <div id="delete-range-fields" class="delete-range-fields hidden">
+        <div class="field-outlined">
+          <label for="delete-from">From</label>
+          <input type="date" id="delete-from" />
+        </div>
+        <div class="field-outlined">
+          <label for="delete-to">To</label>
+          <input type="date" id="delete-to" />
+        </div>
+      </div>
+      <p id="delete-summary" class="dialog-sub"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn-text" id="btn-delete-cancel">Cancel</button>
+        <button type="button" class="btn-filled btn-danger" id="btn-delete-confirm">Delete</button>
       </div>
     </div>
   </dialog>

@@ -76,6 +76,11 @@ function demoBackend() {
       emitTx();
     },
     async deleteTransaction(id) { txs = txs.filter((t) => t.id !== id); emitTx(); },
+    async deleteTransactions(ids) {
+      const idSet = new Set(ids);
+      txs = txs.filter((t) => !idSet.has(t.id));
+      emitTx();
+    },
     async saveSettings(patch) { settings = { ...settings, ...patch }; emitSettings(); },
   };
 }
@@ -169,6 +174,13 @@ async function firebaseBackend() {
     },
     async deleteTransaction(id) {
       await deleteDoc(doc(db, "users", uid, "transactions", id));
+    },
+    async deleteTransactions(ids) {
+      for (let i = 0; i < ids.length; i += 450) {
+        const batch = writeBatch(db);
+        for (const id of ids.slice(i, i + 450)) batch.delete(doc(db, "users", uid, "transactions", id));
+        await batch.commit();
+      }
     },
     async saveSettings(patch) {
       await setDoc(settingsDoc(), patch, { merge: true });

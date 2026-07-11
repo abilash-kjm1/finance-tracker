@@ -123,6 +123,8 @@ function filteredTransactions() {
     let cmp;
     if (sortBy.field === "amount") cmp = (a.type === "expense" ? -a.cents : a.cents) - (b.type === "expense" ? -b.cents : b.cents);
     else if (sortBy.field === "vendor") cmp = a.vendor.localeCompare(b.vendor);
+    else if (sortBy.field === "category") cmp = a.category.localeCompare(b.category) || a.date.localeCompare(b.date);
+    else if (sortBy.field === "cardtype") cmp = (a.cardType || "debit").localeCompare(b.cardType || "debit") || a.date.localeCompare(b.date);
     else cmp = a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
     return cmp * dir;
   });
@@ -437,6 +439,10 @@ function openCsvDialog() {
   $("#dialog-csv").showModal();
 }
 
+// Identifies "the same transaction" across imports so re-uploading a
+// statement that overlaps a previous month doesn't create duplicates.
+const txSignature = (t) => `${t.date}|${t.cents}|${t.type}|${cleanVendor(t.vendor)}`;
+
 async function handleCsvFile(file) {
   const text = await file.text();
   const { transactions: parsed, skipped } = parseCibcCsv(text);
@@ -444,14 +450,38 @@ async function handleCsvFile(file) {
   preview.classList.remove("hidden");
   if (!parsed.length) {
     preview.innerHTML = `Couldn't find any transactions in this file. Make sure it's the CSV downloaded from CIBC online banking.`;
+    pendingCsv = null;
+    $("#btn-csv-import").classList.add("hidden");
     return;
   }
-  pendingCsv = parsed;
-  const spent = parsed.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
-  const dates = parsed.map((t) => t.date).sort();
-  preview.innerHTML = `<strong>${parsed.length} transactions</strong> found (${shortDate(dates[0])} – ${shortDate(dates[dates.length - 1])})<br />
+
+  const existingSigs = new Set(transactions.map(txSignature));
+  const seenInFile = new Set();
+  const deduped = [];
+  let duplicateCount = 0;
+  for (const tx of parsed) {
+    const sig = txSignature(tx);
+    if (existingSigs.has(sig) || seenInFile.has(sig)) { duplicateCount++; continue; }
+    seenInFile.add(sig);
+    deduped.push(tx);
+  }
+
+  pendingCsv = deduped;
+  const dupNote = duplicateCount
+    ? `<br /><em>${duplicateCount} already-imported transaction${duplicateCount === 1 ? "" : "s"} skipped as duplicates.</em>`
+    : "";
+
+  if (!deduped.length) {
+    preview.innerHTML = `All ${parsed.length} transactions in this file were already imported — nothing new to add.${dupNote}`;
+    $("#btn-csv-import").classList.add("hidden");
+    return;
+  }
+
+  const spent = deduped.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
+  const dates = deduped.map((t) => t.date).sort();
+  preview.innerHTML = `<strong>${deduped.length} new transaction${deduped.length === 1 ? "" : "s"}</strong> found (${shortDate(dates[0])} – ${shortDate(dates[dates.length - 1])})<br />
     Total spending: <strong>${fmtMoney(spent)}</strong><br />
-    Categories auto-guessed from vendor names — you can edit any row later.${skipped ? `<br /><em>${skipped} unreadable line(s) skipped.</em>` : ""}`;
+    Categories auto-guessed from vendor names — you can edit any row later.${skipped ? `<br /><em>${skipped} unreadable line(s) skipped.</em>` : ""}${dupNote}`;
   $("#btn-csv-import").classList.remove("hidden");
 }
 
@@ -493,6 +523,57 @@ async function cleanUpVendorNames() {
   }
 }
 
+// ---------- Delete transactions ----------
+function deleteDialogScope() {
+  return document.querySelector('input[name="delete-scope"]:checked').value;
+}
+
+function txsToDelete() {
+  if (deleteDialogScope() === "all") return transactions;
+  const from = $("#delete-from").value;
+  const to = $("#delete-to").value;
+  if (!from && !to) return [];
+  return transactions.filter((t) => (!from || t.date >= from) && (!to || t.date <= to));
+}
+
+function updateDeleteSummary() {
+  const n = txsToDelete().length;
+  $("#delete-summary").textContent = n
+    ? `This will delete ${n} transaction${n === 1 ? "" : "s"}.`
+    : "No transactions match this range.";
+  $("#btn-delete-confirm").disabled = n === 0;
+}
+
+function openDeleteDialog() {
+  $("#delete-scope-all").checked = true;
+  $("#delete-range-fields").classList.add("hidden");
+  $("#delete-from").value = "";
+  $("#delete-to").value = "";
+  updateDeleteSummary();
+  $("#dialog-delete").showModal();
+}
+
+async function confirmDeleteTransactions() {
+  const targets = txsToDelete();
+  if (!targets.length) return;
+  const scope = deleteDialogScope();
+  if (scope === "all" && !confirm(`Delete all ${targets.length} transactions? This can't be undone once you navigate away.`)) {
+    return;
+  }
+  $("#dialog-delete").close();
+  const ids = targets.map((t) => t.id);
+  const backup = targets.map(({ id, ...rest }) => rest);
+  try {
+    await backend.deleteTransactions(ids);
+    showSnackbar(`Deleted ${ids.length} transaction${ids.length === 1 ? "" : "s"}`, "Undo", async () => {
+      await backend.addTransactions(backup);
+    });
+  } catch (err) {
+    console.error(err);
+    showSnackbar("Couldn't delete — check your connection");
+  }
+}
+
 // ---------- Menus ----------
 function toggleMenu(menu) {
   const menus = ["#menu-more", "#menu-account"];
@@ -525,6 +606,10 @@ function wireEvents() {
     toggleMenu("#menu-more");
     cleanUpVendorNames();
   });
+  $("#menu-delete-tx").addEventListener("click", () => {
+    toggleMenu("#menu-more");
+    openDeleteDialog();
+  });
 
   // Summary cards open accounts dialog
   $("#card-balance").addEventListener("click", openAccountsDialog);
@@ -550,6 +635,20 @@ function wireEvents() {
   $("#csv-file").addEventListener("change", (e) => e.target.files[0] && handleCsvFile(e.target.files[0]));
   $("#btn-csv-import").addEventListener("click", importCsv);
   $("#btn-csv-cancel").addEventListener("click", () => $("#dialog-csv").close());
+
+  // Delete transactions dialog
+  $("#delete-scope-all").addEventListener("change", () => {
+    $("#delete-range-fields").classList.add("hidden");
+    updateDeleteSummary();
+  });
+  $("#delete-scope-range").addEventListener("change", () => {
+    $("#delete-range-fields").classList.remove("hidden");
+    updateDeleteSummary();
+  });
+  $("#delete-from").addEventListener("change", updateDeleteSummary);
+  $("#delete-to").addEventListener("change", updateDeleteSummary);
+  $("#btn-delete-confirm").addEventListener("click", confirmDeleteTransactions);
+  $("#btn-delete-cancel").addEventListener("click", () => $("#dialog-delete").close());
 
   // Filters
   $("#filter-month").addEventListener("change", (e) => {
