@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=13";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=13";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=13";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=13";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=14";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=14";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=14";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=14";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -597,8 +597,19 @@ const AI_DATE_RE = /\b((?:January|February|March|April|May|June|July|August|Sept
 // plus color-coding dates and Income/Expense labels for scannability).
 // Text is HTML-escaped first, so only the tags this function inserts exist.
 function markdownLiteToHtml(raw) {
-  let text = escapeHtml(raw).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  text = text.replace(/\((Income|Expense)\)/g, (_, kind) => `(<span class="ai-tag-${kind.toLowerCase()}">${kind}</span>)`);
+  let text = escapeHtml(raw);
+  // Color every dollar amount on a line together with its (Income)/(Expense)
+  // tag, whichever order they appear in — e.g. both "$600.00 (Expense)" and
+  // "(Expense): $600.00" show up depending on how Gemini phrases it.
+  text = text.split("\n").map((line) => {
+    const tag = line.match(/\((Income|Expense)\)/);
+    if (!tag) return line;
+    const kind = tag[1].toLowerCase();
+    return line
+      .replace(/\*{0,2}\((Income|Expense)\)\*{0,2}/, `<span class="ai-tag-${kind}">($1)</span>`)
+      .replace(/\*{0,2}(\$[\d,]+(?:\.\d{2})?)\*{0,2}/g, `<span class="ai-tag-${kind}">$1</span>`);
+  }).join("\n");
+  text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   text = text.replace(AI_DATE_RE, '<span class="ai-date">$1</span>');
   const lines = text.split("\n");
   let html = "";
