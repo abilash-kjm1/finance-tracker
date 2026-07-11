@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=21";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=21";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=21";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=21";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=22";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=22";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=22";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=22";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -157,6 +157,7 @@ let undoTx = null;
 let aiHistory = []; // [{ role: "user"|"model", text }]
 let aiBusy = false;
 let snackbarTimer = null;
+let vendorChipsExpanded = false;
 
 // ---------- Derived data ----------
 // Just the month/date-range scoping — used both for the main table and
@@ -335,7 +336,13 @@ function renderVendorChips() {
   // the top list after a filter change, so the active state stays honest.
   for (const v of filters.vendors) if (!vendors.includes(v)) vendors.push(v);
 
-  $("#vendor-chips-label").classList.toggle("hidden", vendors.length === 0);
+  const toggle = $("#vendor-chips-toggle");
+  toggle.classList.toggle("hidden", vendors.length === 0);
+  // Auto-expand while a vendor filter is active, so its chip stays visible.
+  const expanded = vendorChipsExpanded || filters.vendors.size > 0;
+  toggle.setAttribute("aria-expanded", String(expanded));
+  $("#vendor-chips").classList.toggle("hidden", !expanded);
+
   $("#vendor-chips").innerHTML = vendors
     .map((v) => {
       const color = vendorBrandColor(v);
@@ -937,6 +944,10 @@ function wireEvents() {
     filters.vendors.has(vendor) ? filters.vendors.delete(vendor) : filters.vendors.add(vendor);
     chip.classList.toggle("selected");
     rerenderFiltered();
+  });
+  $("#vendor-chips-toggle").addEventListener("click", () => {
+    vendorChipsExpanded = !vendorChipsExpanded;
+    renderVendorChips();
   });
 
   // Table actions (delegated)
