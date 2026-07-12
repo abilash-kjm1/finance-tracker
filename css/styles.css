@@ -599,7 +599,7 @@ a { color: var(--md-primary); }
 /* This month / next month / later — each bucket gets its own tint,
    independent of light/dark theme so the distinction always reads. */
 .recurring-card-item.bucket-current { background: var(--md-primary-container); color: var(--md-on-primary-container); }
-.recurring-card-item.bucket-next { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
+.recurring-card-item.bucket-next { background: #ff985c; color: #3a1a00; }
 .recurring-card-item.bucket-later { background: var(--md-surface-container-high); color: var(--md-on-surface); }
 .recurring-card-item.overdue { background: var(--md-error-container); color: var(--md-on-error-container); }
 .calendar-card { padding: 16px; }
@@ -690,6 +690,13 @@ a { color: var(--md-primary); }
   }
   .content-sidebar.mobile-open .sidebar-drawer-header { display: flex; }
   .content-sidebar.mobile-open .sidebar-top-row { flex-direction: column; }
+  /* Pack two cards per row instead of one full-width card per row, so
+     the whole recurring-charges list fits with far less scrolling. */
+  .content-sidebar.mobile-open .recurring-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .content-sidebar.mobile-open .recurring-card-item { padding: 8px 10px; }
+  .content-sidebar.mobile-open .recurring-vendor { font-size: 12.5px; white-space: normal; }
+  .content-sidebar.mobile-open .recurring-when { font-size: 10.5px; }
+  .content-sidebar.mobile-open .recurring-amount { font-size: 12.5px; }
 }
 
 /* ---------- Dialogs ---------- */
