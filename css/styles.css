@@ -556,13 +556,22 @@ a { color: var(--md-primary); }
   overflow-y: auto;
   z-index: 10;
 }
-.sidebar-top-row { display: flex; gap: 14px; }
-.sidebar-top-row .recurring-card,
-.sidebar-top-row .calendar-card { flex: 1; min-width: 0; }
+.sidebar-top-row { display: flex; gap: 14px; align-items: flex-start; }
+.recurring-card { flex: 1; min-width: 0; }
+.calendar-column { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.recurring-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.recurring-header .chart-title { margin: 0; }
+.recurring-header .icon-btn { width: 32px; height: 32px; flex: none; }
+.recurring-header .icon-btn .material-symbols-rounded { font-size: 18px; }
+.recurring-header .icon-btn.spinning .material-symbols-rounded { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .recurring-card { padding: 16px; }
 .recurring-sub { font-size: 12px; color: var(--md-on-surface-variant); line-height: 1.4; margin: 2px 0 10px; }
 .recurring-list { display: flex; flex-direction: column; gap: 2px; }
 .recurring-empty { font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.5; }
+.recurring-list ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.recurring-list li { font-size: 13px; line-height: 1.45; }
+.recurring-list p { font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.5; }
 .recurring-row {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 4px;

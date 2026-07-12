@@ -63,27 +63,16 @@ function formatAccountsForPrompt(settings) {
   return parts.join(", ") || "No balance/limit set yet.";
 }
 
-// history: [{ role: "user"|"model", text }]. Returns the model's reply text.
-export async function askGemini(question, transactions, settings, history) {
+async function callGemini(systemText, contents) {
   const apiKey = getGeminiKey();
   if (!apiKey) throw new Error("No Gemini API key saved yet.");
-
-  const systemInstruction = {
-    parts: [{
-      text: `${SYSTEM_PREAMBLE}\n\nAccount summary: ${formatAccountsForPrompt(settings)}\n\nTransactions:\n${formatTransactionsForPrompt(transactions)}`,
-    }],
-  };
-  const contents = [
-    ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
-    { role: "user", parts: [{ text: question }] },
-  ];
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ systemInstruction, contents }),
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: systemText }] }, contents }),
     }
   );
 
@@ -97,4 +86,48 @@ export async function askGemini(question, transactions, settings, history) {
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
   if (!text) throw new Error("No response from Gemini — it may have blocked the request.");
   return text;
+}
+
+// history: [{ role: "user"|"model", text }]. Returns the model's reply text.
+export async function askGemini(question, transactions, settings, history) {
+  const systemText = `${SYSTEM_PREAMBLE}\n\nAccount summary: ${formatAccountsForPrompt(settings)}\n\nTransactions:\n${formatTransactionsForPrompt(transactions)}`;
+  const contents = [
+    ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
+    { role: "user", parts: [{ text: question }] },
+  ];
+  return callGemini(systemText, contents);
+}
+
+// Tailored recurring-charge forecast, following the user's own prompt
+// template: 90-day trailing window, explicitly drop anything that looks
+// cancelled (no charge in over one full interval), catch weekly/biweekly/
+// monthly cadences, and format as a bulleted "(Expense)" list so it
+// renders through the same date/tag highlighting as the chat panel.
+export async function askGeminiRecurringPrediction(transactions) {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const ninetyDaysAgo = new Date(today.getTime() - 90 * 86400000).toISOString().slice(0, 10);
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
+
+  const recent = transactions.filter((t) => t.type === "expense" && t.date >= ninetyDaysAgo);
+  const systemText = `You are analyzing a Canadian user's CIBC transaction history to predict upcoming recurring charges.
+
+Today's date is ${todayStr}. Predict recurring expenses through ${nextMonth} (the remainder of this month and next month).
+
+Transactions from the last 90 days (${ninetyDaysAgo} to ${todayStr}), CSV format date,vendor,category,card,amount_cad:
+${["date,vendor,category,card,amount_cad", ...recent.map((t) => `${t.date},${t.vendor},${t.category},${t.cardType || "debit"},${(t.cents / 100).toFixed(2)}`)].join("\n")}
+
+Follow these strict rules:
+1. Only consider active recurring charges that have appeared within this 90-day window.
+2. Explicitly ignore anything that looks cancelled or stopped — if a vendor's normal interval
+   (e.g. every ~30 days) has clearly been missed (no matching charge in over one full interval
+   past the last one seen), do not predict a future charge for it.
+3. Identify weekly, bi-weekly, and monthly patterns.
+4. Format the output as a simple bulleted list ("* " prefix), using the "Month D, YYYY" date
+   format for each predicted date, and tag each amount with "(Expense)" immediately after it —
+   e.g. "* July 28, 2026 — Rogers Wireless — $89.91 (Expense)".
+5. Output only the bulleted list — no preamble, no summary paragraph, no closing remarks.
+   If nothing qualifies, output exactly: "No active recurring charges detected."`;
+
+  return callGemini(systemText, [{ role: "user", parts: [{ text: "Predict my upcoming recurring charges." }] }]);
 }

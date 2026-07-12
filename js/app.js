@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=31";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=31";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=31";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=31";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=32";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=32";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=32";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=32";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -437,7 +437,7 @@ function detectRecurringCharges() {
   return predictions.slice(0, 8);
 }
 
-function renderRecurringCharges() {
+function renderRecurringChargesLocal() {
   const predictions = detectRecurringCharges();
   const listEl = $("#recurring-list");
   if (!predictions.length) {
@@ -464,6 +464,77 @@ function renderRecurringCharges() {
       </div>`;
     })
     .join("");
+}
+
+// ---------- AI-powered recurring-charge predictions ----------
+// Cached in localStorage and refreshed at most every ~12h automatically
+// (plus a manual refresh button), since this is a static site with no
+// backend to run a true fixed-time schedule — refreshing on app-open
+// when the cache is stale is the closest free equivalent.
+const RECURRING_CACHE_KEY = "ft-recurring-cache";
+const RECURRING_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+let recurringCache = null; // { text, timestamp }
+let recurringCheckedThisSession = false;
+
+function loadRecurringCache() {
+  try {
+    const raw = localStorage.getItem(RECURRING_CACHE_KEY);
+    recurringCache = raw ? JSON.parse(raw) : null;
+  } catch {
+    recurringCache = null;
+  }
+}
+function saveRecurringCache() {
+  try { localStorage.setItem(RECURRING_CACHE_KEY, JSON.stringify(recurringCache)); } catch {}
+}
+
+function relativeTimeSince(ts) {
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function renderRecurringCharges() {
+  const sub = $("#recurring-sub");
+  if (!hasGeminiKey()) {
+    renderRecurringChargesLocal();
+    sub.textContent = "Estimated locally — add a Gemini key in Ask AI (✨) for smarter predictions.";
+    return;
+  }
+  if (recurringCache?.text) {
+    $("#recurring-list").innerHTML = markdownLiteToHtml(recurringCache.text);
+    sub.textContent = `AI-predicted · updated ${relativeTimeSince(recurringCache.timestamp)}`;
+  } else {
+    // First-ever load with a key but no cache yet: show the local
+    // estimate immediately while the AI version loads in the background.
+    renderRecurringChargesLocal();
+    sub.textContent = "Estimated locally — checking AI predictions…";
+  }
+}
+
+async function refreshRecurringChargesFromAI(force = false) {
+  if (!hasGeminiKey()) {
+    if (force) showSnackbar("Add a Gemini API key in Ask AI (✨) to get AI-predicted recurring charges");
+    return;
+  }
+  if (!force && recurringCache && Date.now() - recurringCache.timestamp < RECURRING_CACHE_MAX_AGE_MS) return;
+
+  const btn = $("#btn-recurring-refresh");
+  btn.classList.add("spinning");
+  try {
+    const text = await askGeminiRecurringPrediction(transactions);
+    recurringCache = { text, timestamp: Date.now() };
+    saveRecurringCache();
+  } catch (err) {
+    console.error(err);
+    if (force) showSnackbar(`Couldn't refresh predictions: ${err.message}`);
+  } finally {
+    btn.classList.remove("spinning");
+    renderRecurringCharges();
+  }
 }
 
 // ---------- Sidebar calendar + independent day view ----------
@@ -660,6 +731,14 @@ function renderAll() {
   renderCalendar();
   renderDayPanel();
   renderRecurringCharges();
+
+  // Kick off the AI refresh check once per session (respects the 12h
+  // cache internally) — not on every renderAll() call, which fires on
+  // routine UI interactions too.
+  if (!recurringCheckedThisSession) {
+    recurringCheckedThisSession = true;
+    refreshRecurringChargesFromAI(false);
+  }
 }
 
 function rerenderFiltered() {
@@ -1141,6 +1220,8 @@ function wireEvents() {
     rerenderFiltered();
   });
 
+  $("#btn-recurring-refresh").addEventListener("click", () => refreshRecurringChargesFromAI(true));
+
   // Sidebar calendar + independent day view
   $("#btn-cal-prev").addEventListener("click", () => {
     calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
@@ -1241,6 +1322,7 @@ function showScreen(which) {
 let unsubTx = null, unsubSettings = null;
 
 async function main() {
+  loadRecurringCache();
   if (!isConfigured && !isDemo) {
     showScreen("setup");
     return;
