@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=33";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=33";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=33";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=33";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=34";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=34";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=34";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=34";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -439,14 +439,10 @@ function detectRecurringCharges() {
   return predictions.slice(0, 8);
 }
 
-function renderRecurringChargesLocal() {
-  const predictions = detectRecurringCharges();
-  const listEl = $("#recurring-list");
-  if (!predictions.length) {
-    listEl.innerHTML = `<p class="recurring-empty">Not enough billing history yet to predict recurring charges — this fills in once a vendor has charged you at least 3 times.</p>`;
-    return;
-  }
-  listEl.innerHTML = predictions
+// Shared row template for both the local heuristic and AI-parsed
+// predictions, so they always look identical regardless of source.
+function recurringRowsHtml(predictions, { approximate }) {
+  return predictions
     .map((p) => {
       const overdue = p.daysOut < 0;
       const when = overdue
@@ -462,10 +458,46 @@ function renderRecurringChargesLocal() {
           <span class="recurring-vendor">${escapeHtml(p.vendor)}</span>
           <span class="recurring-when">${when}</span>
         </div>
-        <span class="recurring-amount">~${fmtMoney(p.predictedCents)}</span>
+        <span class="recurring-amount">${approximate ? "~" : ""}${fmtMoney(p.predictedCents)}</span>
       </div>`;
     })
     .join("");
+}
+
+function renderRecurringChargesLocal() {
+  const predictions = detectRecurringCharges();
+  const listEl = $("#recurring-list");
+  if (!predictions.length) {
+    listEl.innerHTML = `<p class="recurring-empty">Not enough billing history yet to predict recurring charges — this fills in once a vendor has charged you at least 3 times.</p>`;
+    return;
+  }
+  listEl.innerHTML = recurringRowsHtml(predictions, { approximate: true });
+}
+
+// Parses Gemini's "* Month D, YYYY — Vendor — $XX.XX (Expense)" bullets
+// (the exact format required in the prompt) into the same structured
+// shape detectRecurringCharges() produces, so both render identically.
+function parseAiRecurringPredictions(raw) {
+  const today = new Date(todayStr() + "T00:00:00");
+  const lineRe = /^(.+?)\s*—\s*(.+?)\s*—\s*\$?([\d,]+\.\d{2})\s*\(Expense\)/i;
+  const predictions = [];
+
+  for (const rawLine of raw.split("\n")) {
+    const bullet = rawLine.match(/^\s*[*-]\s*(.+)$/);
+    if (!bullet) continue;
+    const m = bullet[1].match(lineRe);
+    if (!m) continue;
+    const parsedDate = new Date(m[1].trim());
+    if (isNaN(parsedDate)) continue;
+    predictions.push({
+      vendor: m[2].trim(),
+      predictedDate: `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, "0")}-${String(parsedDate.getDate()).padStart(2, "0")}`,
+      predictedCents: Math.round(parseFloat(m[3].replace(/,/g, "")) * 100),
+      daysOut: Math.round((parsedDate - today) / 86400000),
+    });
+  }
+  predictions.sort((a, b) => a.daysOut - b.daysOut);
+  return predictions;
 }
 
 // ---------- AI-powered recurring-charge predictions ----------
@@ -507,7 +539,10 @@ function renderRecurringCharges() {
     return;
   }
   if (recurringCache?.text) {
-    $("#recurring-list").innerHTML = markdownLiteToHtml(recurringCache.text);
+    const predictions = parseAiRecurringPredictions(recurringCache.text);
+    $("#recurring-list").innerHTML = predictions.length
+      ? recurringRowsHtml(predictions, { approximate: false })
+      : `<p class="recurring-empty">${escapeHtml(recurringCache.text.trim())}</p>`;
     sub.textContent = `AI-predicted · updated ${relativeTimeSince(recurringCache.timestamp)}`;
   } else {
     // First-ever load with a key but no cache yet: show the local
