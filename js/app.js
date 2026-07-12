@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=26";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=26";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=26";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=26";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=27";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=27";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=27";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=27";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -386,7 +386,10 @@ function renderVendorChips() {
     .join("");
 }
 
-// ---------- Floating calendar ----------
+// ---------- Sidebar calendar + independent day view ----------
+// This panel is deliberately separate from the main filters/table above:
+// clicking a day here never touches filters.from/to, so it's a quick
+// "peek at this day" view without disturbing whatever you were browsing.
 function renderCalendar() {
   const year = calendarViewDate.getFullYear();
   const month = calendarViewDate.getMonth();
@@ -411,24 +414,51 @@ function renderCalendar() {
   $("#btn-cal-clear").classList.toggle("hidden", !calendarSelectedDate);
 }
 
-function selectCalendarDay(dateStr) {
-  calendarSelectedDate = dateStr;
-  filters.from = dateStr;
-  filters.to = dateStr;
-  filters.month = "all";
-  filters.vendors.clear();
-  $("#range-from").value = dateStr;
-  $("#range-to").value = dateStr;
-  $("#range-row").classList.remove("hidden");
-  renderMonthOptions();
-  renderVendorChips();
-  renderCalendar();
-  rerenderFiltered();
+function renderDayPanel() {
+  const titleEl = $("#day-panel-title");
+  const totalEl = $("#day-panel-total");
+  const listEl = $("#day-panel-list");
+
+  if (!calendarSelectedDate) {
+    titleEl.textContent = "Select a day";
+    totalEl.textContent = "";
+    listEl.innerHTML = `<p class="day-panel-empty">Click a day in the calendar to see its transactions here — this view is independent from the filters above.</p>`;
+    return;
+  }
+
+  const dayTxs = transactions
+    .filter((t) => t.date === calendarSelectedDate)
+    .sort((a, b) => b.cents - a.cents);
+  titleEl.textContent = shortDate(calendarSelectedDate);
+
+  if (!dayTxs.length) {
+    totalEl.textContent = "";
+    listEl.innerHTML = `<p class="day-panel-empty">No transactions on this day.</p>`;
+    return;
+  }
+
+  const spent = dayTxs.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
+  const income = dayTxs.filter((t) => t.type === "income").reduce((a, t) => a + t.cents, 0);
+  totalEl.textContent = `${dayTxs.length} transaction${dayTxs.length === 1 ? "" : "s"} · −${fmtMoney(spent)}${income ? ` · +${fmtMoney(income)}` : ""}`;
+
+  listEl.innerHTML = dayTxs
+    .map((t) => {
+      const sign = t.type === "expense" ? "−" : "+";
+      return `<div class="day-panel-row">
+        <div class="day-panel-row-main">
+          <span class="day-panel-vendor">${escapeHtml(t.vendor)}</span>
+          <span class="day-panel-cat">${t.category} · ${CARD_TYPE_LABELS[t.cardType || "debit"]}</span>
+        </div>
+        <span class="day-panel-amount ${t.type}">${sign}${fmtMoney(t.cents)}</span>
+      </div>`;
+    })
+    .join("");
 }
 
-function clearCalendarSelection() {
-  calendarSelectedDate = null;
+function selectCalendarDay(dateStr) {
+  calendarSelectedDate = calendarSelectedDate === dateStr ? null : dateStr;
   renderCalendar();
+  renderDayPanel();
 }
 
 function renderTable(list) {
@@ -547,6 +577,8 @@ function renderAll() {
   renderVendorChips();
   renderTable(filteredTransactions());
   renderCharts();
+  renderCalendar();
+  renderDayPanel();
 }
 
 function rerenderFiltered() {
@@ -1002,8 +1034,6 @@ function wireEvents() {
     filters.vendors.clear();
     $("#range-from").value = $("#range-to").value = "";
     $("#range-row").classList.add("hidden");
-    calendarSelectedDate = null;
-    renderCalendar();
     renderVendorChips();
     rerenderFiltered();
   });
@@ -1016,8 +1046,6 @@ function wireEvents() {
     filters.from = $("#range-from").value;
     filters.to = $("#range-to").value;
     filters.vendors.clear();
-    calendarSelectedDate = null;
-    renderCalendar();
     renderVendorChips();
     rerenderFiltered();
   };
@@ -1028,20 +1056,11 @@ function wireEvents() {
     filters.vendors.clear();
     $("#range-from").value = $("#range-to").value = "";
     $("#range-row").classList.add("hidden");
-    calendarSelectedDate = null;
-    renderCalendar();
     renderVendorChips();
     rerenderFiltered();
   });
 
-  // Floating calendar
-  $("#btn-calendar-toggle").addEventListener("click", () => {
-    const widget = $("#calendar-widget");
-    const opening = widget.classList.contains("hidden");
-    widget.classList.toggle("hidden");
-    if (opening) renderCalendar();
-  });
-  $("#btn-cal-close").addEventListener("click", () => $("#calendar-widget").classList.add("hidden"));
+  // Sidebar calendar + independent day view
   $("#btn-cal-prev").addEventListener("click", () => {
     calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
     renderCalendar();
@@ -1057,12 +1076,8 @@ function wireEvents() {
   });
   $("#btn-cal-clear").addEventListener("click", () => {
     calendarSelectedDate = null;
-    filters.from = filters.to = "";
-    $("#range-from").value = $("#range-to").value = "";
-    $("#range-row").classList.add("hidden");
     renderCalendar();
-    renderVendorChips();
-    rerenderFiltered();
+    renderDayPanel();
   });
 
   // Category chips (delegated)

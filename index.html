@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:opsz,wght@17..18,400..700&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=26" />
+  <link rel="stylesheet" href="css/styles.css?v=27" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -103,6 +103,8 @@
     </header>
 
     <main class="content">
+      <div class="content-layout">
+      <div class="content-main">
       <!-- Demo banner -->
       <div id="demo-banner" class="demo-banner hidden">
         <span class="material-symbols-rounded">science</span>
@@ -206,6 +208,32 @@
           <div id="tx-pagination" class="tx-pagination hidden"></div>
         </div>
       </section>
+      </div>
+
+      <!-- ======= SIDEBAR: calendar + day view (desktop only) ======= -->
+      <aside class="content-sidebar">
+        <div class="card calendar-card">
+          <div class="calendar-header">
+            <button type="button" id="btn-cal-prev" class="icon-btn" aria-label="Previous month"><span class="material-symbols-rounded">chevron_left</span></button>
+            <span id="calendar-month-label" class="calendar-month-label"></span>
+            <button type="button" id="btn-cal-next" class="icon-btn" aria-label="Next month"><span class="material-symbols-rounded">chevron_right</span></button>
+          </div>
+          <div class="calendar-weekdays">
+            <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+          </div>
+          <div id="calendar-grid" class="calendar-grid"></div>
+          <button type="button" id="btn-cal-clear" class="btn-text calendar-clear hidden">Clear day selection</button>
+        </div>
+
+        <div class="card day-panel">
+          <h2 class="chart-title" id="day-panel-title">Select a day</h2>
+          <div id="day-panel-total" class="day-panel-total"></div>
+          <div id="day-panel-list" class="day-panel-list">
+            <p class="day-panel-empty">Click a day in the calendar to see its transactions here — this view is independent from the filters above.</p>
+          </div>
+        </div>
+      </aside>
+      </div>
     </main>
 
     <!-- FAB -->
@@ -213,24 +241,6 @@
       <span class="material-symbols-rounded">add</span>
       <span class="fab-label">Add</span>
     </button>
-
-    <!-- Floating calendar (desktop only) -->
-    <button id="btn-calendar-toggle" class="fab fab-secondary" aria-label="Open calendar" title="Browse by day">
-      <span class="material-symbols-rounded">calendar_month</span>
-    </button>
-    <div id="calendar-widget" class="calendar-widget hidden card">
-      <div class="calendar-header">
-        <button type="button" id="btn-cal-prev" class="icon-btn" aria-label="Previous month"><span class="material-symbols-rounded">chevron_left</span></button>
-        <span id="calendar-month-label" class="calendar-month-label"></span>
-        <button type="button" id="btn-cal-next" class="icon-btn" aria-label="Next month"><span class="material-symbols-rounded">chevron_right</span></button>
-        <button type="button" id="btn-cal-close" class="icon-btn" aria-label="Close calendar"><span class="material-symbols-rounded">close</span></button>
-      </div>
-      <div class="calendar-weekdays">
-        <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
-      </div>
-      <div id="calendar-grid" class="calendar-grid"></div>
-      <button type="button" id="btn-cal-clear" class="btn-text calendar-clear hidden">Clear day selection</button>
-    </div>
   </div>
 
   <!-- ============ ADD/EDIT TRANSACTION DIALOG ============ -->
@@ -394,6 +404,6 @@
     <button id="snackbar-action" class="snackbar-btn hidden">Undo</button>
   </div>
 
-  <script type="module" src="js/app.js?v=26"></script>
+  <script type="module" src="js/app.js?v=27"></script>
 </body>
 </html>
