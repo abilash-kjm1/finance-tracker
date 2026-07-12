@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=34";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=34";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=34";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=34";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=35";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=35";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=35";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=35";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -441,24 +441,51 @@ function detectRecurringCharges() {
 
 // Shared row template for both the local heuristic and AI-parsed
 // predictions, so they always look identical regardless of source.
+// Groups predictions into "This month" / "Next month" / "Later" and
+// renders each as a small card, color-coded per group, instead of a
+// flat list — makes it easy to see what's due soon vs further out.
 function recurringRowsHtml(predictions, { approximate }) {
-  return predictions
-    .map((p) => {
-      const overdue = p.daysOut < 0;
-      const when = overdue
-        ? `${Math.abs(p.daysOut)} day${Math.abs(p.daysOut) === 1 ? "" : "s"} overdue`
-        : p.daysOut === 0
-        ? "Due today"
-        : p.daysOut === 1
-        ? "Due tomorrow"
-        : `In ${p.daysOut} days · ${shortDate(p.predictedDate)}`;
-      return `<div class="recurring-row ${overdue ? "overdue" : ""}">
-        <span class="material-symbols-rounded recurring-icon">${overdue ? "notification_important" : "event_repeat"}</span>
-        <div class="recurring-row-main">
-          <span class="recurring-vendor">${escapeHtml(p.vendor)}</span>
-          <span class="recurring-when">${when}</span>
-        </div>
-        <span class="recurring-amount">${approximate ? "~" : ""}${fmtMoney(p.predictedCents)}</span>
+  const curKey = monthKey(todayStr());
+  const d = new Date(); d.setMonth(d.getMonth() + 1);
+  const nextKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+  const groups = [
+    { key: "current", label: "This month", cls: "bucket-current", items: [] },
+    { key: "next", label: "Next month", cls: "bucket-next", items: [] },
+    { key: "later", label: "Later", cls: "bucket-later", items: [] },
+  ];
+  for (const p of predictions) {
+    const mk = monthKey(p.predictedDate);
+    const group = mk === curKey ? groups[0] : mk === nextKey ? groups[1] : groups[2];
+    group.items.push(p);
+  }
+
+  return groups
+    .filter((g) => g.items.length)
+    .map((g) => {
+      const cards = g.items
+        .map((p) => {
+          const overdue = p.daysOut < 0;
+          const when = overdue
+            ? `${Math.abs(p.daysOut)} day${Math.abs(p.daysOut) === 1 ? "" : "s"} overdue`
+            : p.daysOut === 0
+            ? "Due today"
+            : p.daysOut === 1
+            ? "Due tomorrow"
+            : shortDate(p.predictedDate);
+          return `<div class="recurring-card-item ${overdue ? "overdue" : g.cls}">
+            <div class="recurring-card-top">
+              <span class="material-symbols-rounded recurring-icon">${overdue ? "notification_important" : "event_repeat"}</span>
+              <span class="recurring-amount">${approximate ? "~" : ""}${fmtMoney(p.predictedCents)}</span>
+            </div>
+            <span class="recurring-vendor">${escapeHtml(p.vendor)}</span>
+            <span class="recurring-when">${when}</span>
+          </div>`;
+        })
+        .join("");
+      return `<div class="recurring-group">
+        <h3 class="recurring-group-label">${g.label}</h3>
+        <div class="recurring-cards">${cards}</div>
       </div>`;
     })
     .join("");

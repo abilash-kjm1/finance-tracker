@@ -567,30 +567,41 @@ a { color: var(--md-primary); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .recurring-card { padding: 16px; }
 .recurring-sub { font-size: 12px; color: var(--md-on-surface-variant); line-height: 1.4; margin: 2px 0 10px; }
-.recurring-list { display: flex; flex-direction: column; gap: 2px; }
+.recurring-list { display: flex; flex-direction: column; gap: 14px; }
 .recurring-empty { font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.5; }
 .recurring-list ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .recurring-list li { font-size: 13px; line-height: 1.45; }
 .recurring-list p { font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.5; }
-.recurring-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 4px;
-  border-bottom: 1px solid color-mix(in srgb, var(--md-outline-variant) 45%, transparent);
+
+.recurring-group-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--md-on-surface-variant);
+  margin: 0 0 8px;
+}
+.recurring-cards { display: flex; flex-direction: column; gap: 8px; }
+.recurring-card-item {
+  display: flex; flex-direction: column; gap: 2px;
+  border-radius: 14px;
+  padding: 10px 12px;
   animation: row-in .25s ease backwards;
 }
-.recurring-row:last-child { border-bottom: none; }
+.recurring-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
 .recurring-icon {
-  flex: none; width: 32px; height: 32px; border-radius: 50%;
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
   display: grid; place-items: center;
-  background: var(--md-tertiary-container); color: var(--md-on-tertiary-container);
-  font-size: 17px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+  font-size: 15px;
 }
-.recurring-row.overdue .recurring-icon { background: var(--md-error-container); color: var(--md-on-error-container); }
-.recurring-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.recurring-vendor { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recurring-when { font-size: 11.5px; color: var(--md-on-surface-variant); }
-.recurring-row.overdue .recurring-when { color: var(--expense); font-weight: 500; }
-.recurring-amount { font-size: 13.5px; font-weight: 600; color: var(--expense); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.recurring-vendor { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recurring-when { font-size: 11.5px; opacity: .8; }
+.recurring-amount { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* This month / next month / later — each bucket gets its own tint,
+   independent of light/dark theme so the distinction always reads. */
+.recurring-card-item.bucket-current { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.recurring-card-item.bucket-next { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.recurring-card-item.bucket-later { background: var(--md-surface-container-high); color: var(--md-on-surface); }
+.recurring-card-item.overdue { background: var(--md-error-container); color: var(--md-on-error-container); }
 .calendar-card { padding: 16px; }
 .calendar-header { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
 .calendar-month-label { flex: 1; text-align: center; font-size: 14.5px; font-weight: 500; }
