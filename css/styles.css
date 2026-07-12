@@ -599,7 +599,7 @@ a { color: var(--md-primary); }
 /* This month / next month / later — each bucket gets its own tint,
    independent of light/dark theme so the distinction always reads. */
 .recurring-card-item.bucket-current { background: var(--md-primary-container); color: var(--md-on-primary-container); }
-.recurring-card-item.bucket-next { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.recurring-card-item.bucket-next { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
 .recurring-card-item.bucket-later { background: var(--md-surface-container-high); color: var(--md-on-surface); }
 .recurring-card-item.overdue { background: var(--md-error-container); color: var(--md-on-error-container); }
 .calendar-card { padding: 16px; }
@@ -662,6 +662,34 @@ a { color: var(--md-primary); }
 @media (min-width: 1500px) {
   .content { max-width: none; margin: 0; padding-right: 640px; }
   .content-sidebar { display: flex; }
+}
+
+/* ---------- Mobile: sidebar becomes a full-screen drawer opened from
+   the ⋮ menu, instead of being unreachable ---------- */
+.sidebar-drawer-header { display: none; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.sidebar-drawer-title { font-size: 16px; font-weight: 500; }
+.menu-item-mobile-only { display: none; }
+
+@media (max-width: 1500px) {
+  .menu-item-mobile-only { display: flex; }
+  .content-sidebar.mobile-open {
+    display: flex !important;
+    flex-direction: column;
+    gap: 14px;
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    background: var(--md-surface);
+    z-index: 200;
+    padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  .content-sidebar.mobile-open .sidebar-drawer-header { display: flex; }
+  .content-sidebar.mobile-open .sidebar-top-row { flex-direction: column; }
 }
 
 /* ---------- Dialogs ---------- */

@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=35";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=35";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=35";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=35";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=36";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=36";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=36";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=36";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -1193,6 +1193,13 @@ function wireEvents() {
   $("#menu-clean-vendors").addEventListener("click", () => {
     toggleMenu("#menu-more");
     cleanUpVendorNames();
+  });
+  $("#menu-mobile-sidebar").addEventListener("click", () => {
+    toggleMenu("#menu-more");
+    $(".content-sidebar").classList.add("mobile-open");
+  });
+  $("#btn-sidebar-close").addEventListener("click", () => {
+    $(".content-sidebar").classList.remove("mobile-open");
   });
   $("#menu-delete-tx").addEventListener("click", () => {
     toggleMenu("#menu-more");
