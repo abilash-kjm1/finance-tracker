@@ -556,6 +556,29 @@ a { color: var(--md-primary); }
   overflow-y: auto;
   z-index: 10;
 }
+.recurring-card { padding: 16px; }
+.recurring-sub { font-size: 12px; color: var(--md-on-surface-variant); line-height: 1.4; margin: 2px 0 10px; }
+.recurring-list { display: flex; flex-direction: column; gap: 2px; }
+.recurring-empty { font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.5; }
+.recurring-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--md-outline-variant) 45%, transparent);
+  animation: row-in .25s ease backwards;
+}
+.recurring-row:last-child { border-bottom: none; }
+.recurring-icon {
+  flex: none; width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--md-tertiary-container); color: var(--md-on-tertiary-container);
+  font-size: 17px;
+}
+.recurring-row.overdue .recurring-icon { background: var(--md-error-container); color: var(--md-on-error-container); }
+.recurring-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.recurring-vendor { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recurring-when { font-size: 11.5px; color: var(--md-on-surface-variant); }
+.recurring-row.overdue .recurring-when { color: var(--expense); font-weight: 500; }
+.recurring-amount { font-size: 13.5px; font-weight: 600; color: var(--expense); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .calendar-card { padding: 16px; }
 .calendar-header { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
 .calendar-month-label { flex: 1; text-align: center; font-size: 14.5px; font-weight: 500; }

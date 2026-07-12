@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=29";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=29";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=29";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=29";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=30";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=30";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=30";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=30";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -386,6 +386,86 @@ function renderVendorChips() {
     .join("");
 }
 
+// ---------- Recurring charge prediction ----------
+// Detects vendors billed at a consistent interval and consistent amount
+// (subscriptions, rent, phone bills, etc.) and projects when the next
+// charge is likely to land. Deterministic and free — no AI call needed,
+// so it can run instantly on every page load.
+function detectRecurringCharges() {
+  const byVendor = new Map();
+  for (const t of transactions) {
+    if (t.type !== "expense") continue;
+    if (!byVendor.has(t.vendor)) byVendor.set(t.vendor, []);
+    byVendor.get(t.vendor).push(t);
+  }
+
+  const today = new Date(todayStr() + "T00:00:00");
+  const predictions = [];
+
+  for (const [vendor, txs] of byVendor) {
+    if (txs.length < 3) continue;
+    const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date));
+    const dates = sorted.map((t) => new Date(t.date + "T00:00:00"));
+
+    const intervals = [];
+    for (let i = 1; i < dates.length; i++) intervals.push((dates[i] - dates[i - 1]) / 86400000);
+    const recentIntervals = intervals.slice(-4);
+    const meanInterval = recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length;
+    if (meanInterval < 5 || meanInterval > 400) continue; // too frequent or too rare to call "recurring"
+    const intervalCV = Math.sqrt(recentIntervals.reduce((a, b) => a + (b - meanInterval) ** 2, 0) / recentIntervals.length) / meanInterval;
+    if (intervalCV > 0.3) continue; // interval too irregular
+
+    const recentAmounts = sorted.slice(-4).map((t) => t.cents);
+    const meanAmount = recentAmounts.reduce((a, b) => a + b, 0) / recentAmounts.length;
+    const amountCV = Math.sqrt(recentAmounts.reduce((a, b) => a + (b - meanAmount) ** 2, 0) / recentAmounts.length) / meanAmount;
+    if (amountCV > 0.2) continue; // amount too irregular to be a fixed bill/subscription
+
+    const lastDate = dates[dates.length - 1];
+    const nextDate = new Date(lastDate.getTime() + Math.round(meanInterval) * 86400000);
+    const daysOut = Math.round((nextDate - today) / 86400000);
+    if (daysOut < -15 || daysOut > 60) continue; // outside the useful prediction window
+
+    predictions.push({
+      vendor,
+      predictedDate: `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}`,
+      predictedCents: Math.round(meanAmount),
+      daysOut,
+    });
+  }
+
+  predictions.sort((a, b) => a.daysOut - b.daysOut);
+  return predictions.slice(0, 8);
+}
+
+function renderRecurringCharges() {
+  const predictions = detectRecurringCharges();
+  const listEl = $("#recurring-list");
+  if (!predictions.length) {
+    listEl.innerHTML = `<p class="recurring-empty">Not enough billing history yet to predict recurring charges — this fills in once a vendor has charged you at least 3 times.</p>`;
+    return;
+  }
+  listEl.innerHTML = predictions
+    .map((p) => {
+      const overdue = p.daysOut < 0;
+      const when = overdue
+        ? `${Math.abs(p.daysOut)} day${Math.abs(p.daysOut) === 1 ? "" : "s"} overdue`
+        : p.daysOut === 0
+        ? "Due today"
+        : p.daysOut === 1
+        ? "Due tomorrow"
+        : `In ${p.daysOut} days · ${shortDate(p.predictedDate)}`;
+      return `<div class="recurring-row ${overdue ? "overdue" : ""}">
+        <span class="material-symbols-rounded recurring-icon">${overdue ? "notification_important" : "event_repeat"}</span>
+        <div class="recurring-row-main">
+          <span class="recurring-vendor">${escapeHtml(p.vendor)}</span>
+          <span class="recurring-when">${when}</span>
+        </div>
+        <span class="recurring-amount">~${fmtMoney(p.predictedCents)}</span>
+      </div>`;
+    })
+    .join("");
+}
+
 // ---------- Sidebar calendar + independent day view ----------
 // This panel is deliberately separate from the main filters/table above:
 // clicking a day here never touches filters.from/to, so it's a quick
@@ -579,6 +659,7 @@ function renderAll() {
   renderCharts();
   renderCalendar();
   renderDayPanel();
+  renderRecurringCharges();
 }
 
 function rerenderFiltered() {
