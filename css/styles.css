@@ -538,6 +538,64 @@ a { color: var(--md-primary); }
 .fab:active { transform: scale(.97); }
 .fab-label { display: inline; }
 
+/* ---------- Floating calendar (desktop only) ---------- */
+.fab-secondary {
+  width: 48px; height: 48px; padding: 0;
+  justify-content: center;
+  border-radius: 14px;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.calendar-widget {
+  position: fixed;
+  right: 20px;
+  bottom: calc(144px + env(safe-area-inset-bottom));
+  z-index: 39;
+  width: 300px;
+  padding: 14px;
+  box-shadow: var(--md-shadow-3);
+  animation: dialog-in .2s cubic-bezier(.2,.9,.3,1.1);
+}
+.calendar-header { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.calendar-month-label { flex: 1; text-align: center; font-size: 14.5px; font-weight: 500; }
+.calendar-header .icon-btn { width: 34px; height: 34px; }
+.calendar-header .icon-btn .material-symbols-rounded { font-size: 19px; }
+.calendar-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 11px; font-weight: 600;
+  color: var(--md-on-surface-variant);
+  margin-bottom: 4px;
+}
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-day {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12.5px;
+  border-radius: 50%;
+  color: var(--md-on-surface);
+  transition: background-color .15s;
+}
+.cal-day:hover { background: var(--md-surface-container-high); }
+.cal-day.cal-empty { visibility: hidden; pointer-events: none; }
+.cal-day.cal-today { font-weight: 700; color: var(--md-primary); }
+.cal-day.cal-has-data::after {
+  content: "";
+  position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--md-primary);
+}
+.cal-day.cal-selected { background: var(--md-primary); color: var(--md-on-primary); }
+.cal-day.cal-selected::after { background: var(--md-on-primary); }
+.calendar-clear { width: 100%; margin-top: 6px; justify-content: center; }
+
+@media (max-width: 860px) {
+  .fab-secondary, .calendar-widget { display: none; }
+}
+
 /* ---------- Dialogs ---------- */
 .dialog {
   border: none;

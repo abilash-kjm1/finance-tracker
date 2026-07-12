@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=25";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=25";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=25";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=25";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=26";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=26";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=26";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey } from "./gemini.js?v=26";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -163,6 +163,8 @@ let vendorChipsExpanded = false;
 // rows ever hits the DOM.
 const ROWS_PER_PAGE = 100;
 let tablePage = 0;
+let calendarViewDate = new Date(); // month currently shown in the floating calendar
+let calendarSelectedDate = null; // "YYYY-MM-DD" or null
 
 // ---------- Derived data ----------
 // Just the month/date-range scoping — used both for the main table and
@@ -382,6 +384,51 @@ function renderVendorChips() {
       return `<button class="${cls}"${style} data-vendor="${escapeHtml(v)}">${escapeHtml(v)}</button>`;
     })
     .join("");
+}
+
+// ---------- Floating calendar ----------
+function renderCalendar() {
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  $("#calendar-month-label").textContent = calendarViewDate.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+
+  const daysWithData = new Set(transactions.map((t) => t.date));
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = todayStr();
+
+  let html = "";
+  for (let i = 0; i < firstWeekday; i++) html += `<span class="cal-day cal-empty"></span>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const cls = ["cal-day"];
+    if (dateStr === today) cls.push("cal-today");
+    if (daysWithData.has(dateStr)) cls.push("cal-has-data");
+    if (dateStr === calendarSelectedDate) cls.push("cal-selected");
+    html += `<button type="button" class="${cls.join(" ")}" data-date="${dateStr}">${d}</button>`;
+  }
+  $("#calendar-grid").innerHTML = html;
+  $("#btn-cal-clear").classList.toggle("hidden", !calendarSelectedDate);
+}
+
+function selectCalendarDay(dateStr) {
+  calendarSelectedDate = dateStr;
+  filters.from = dateStr;
+  filters.to = dateStr;
+  filters.month = "all";
+  filters.vendors.clear();
+  $("#range-from").value = dateStr;
+  $("#range-to").value = dateStr;
+  $("#range-row").classList.remove("hidden");
+  renderMonthOptions();
+  renderVendorChips();
+  renderCalendar();
+  rerenderFiltered();
+}
+
+function clearCalendarSelection() {
+  calendarSelectedDate = null;
+  renderCalendar();
 }
 
 function renderTable(list) {
@@ -955,6 +1002,8 @@ function wireEvents() {
     filters.vendors.clear();
     $("#range-from").value = $("#range-to").value = "";
     $("#range-row").classList.add("hidden");
+    calendarSelectedDate = null;
+    renderCalendar();
     renderVendorChips();
     rerenderFiltered();
   });
@@ -967,6 +1016,8 @@ function wireEvents() {
     filters.from = $("#range-from").value;
     filters.to = $("#range-to").value;
     filters.vendors.clear();
+    calendarSelectedDate = null;
+    renderCalendar();
     renderVendorChips();
     rerenderFiltered();
   };
@@ -977,6 +1028,39 @@ function wireEvents() {
     filters.vendors.clear();
     $("#range-from").value = $("#range-to").value = "";
     $("#range-row").classList.add("hidden");
+    calendarSelectedDate = null;
+    renderCalendar();
+    renderVendorChips();
+    rerenderFiltered();
+  });
+
+  // Floating calendar
+  $("#btn-calendar-toggle").addEventListener("click", () => {
+    const widget = $("#calendar-widget");
+    const opening = widget.classList.contains("hidden");
+    widget.classList.toggle("hidden");
+    if (opening) renderCalendar();
+  });
+  $("#btn-cal-close").addEventListener("click", () => $("#calendar-widget").classList.add("hidden"));
+  $("#btn-cal-prev").addEventListener("click", () => {
+    calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
+    renderCalendar();
+  });
+  $("#btn-cal-next").addEventListener("click", () => {
+    calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
+    renderCalendar();
+  });
+  $("#calendar-grid").addEventListener("click", (e) => {
+    const day = e.target.closest(".cal-day:not(.cal-empty)");
+    if (!day) return;
+    selectCalendarDay(day.dataset.date);
+  });
+  $("#btn-cal-clear").addEventListener("click", () => {
+    calendarSelectedDate = null;
+    filters.from = filters.to = "";
+    $("#range-from").value = $("#range-to").value = "";
+    $("#range-row").classList.add("hidden");
+    renderCalendar();
     renderVendorChips();
     rerenderFiltered();
   });
