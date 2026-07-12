@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=38";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=38";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=38";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=38";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=39";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=39";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=39";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=39";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -483,8 +483,12 @@ function recurringRowsHtml(predictions, { approximate }) {
           </div>`;
         })
         .join("");
+      const groupTotal = g.items.reduce((a, p) => a + p.predictedCents, 0);
       return `<div class="recurring-group">
-        <h3 class="recurring-group-label">${g.label}</h3>
+        <div class="recurring-group-header">
+          <h3 class="recurring-group-label">${g.label}</h3>
+          <span class="recurring-group-total">${approximate ? "~" : ""}${fmtMoney(groupTotal)}</span>
+        </div>
         <div class="recurring-cards">${cards}</div>
       </div>`;
     })
@@ -683,8 +687,10 @@ function renderTable(list) {
 
   const spent = list.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
   const income = list.filter((t) => t.type === "income").reduce((a, t) => a + t.cents, 0);
-  $("#tx-total").textContent = list.length
-    ? `−${fmtMoney(spent)} spent${income ? ` · +${fmtMoney(income)} in` : ""}`
+  $("#tx-total").innerHTML = list.length
+    ? `<span class="tx-total-chip tx-total-spent"><span class="material-symbols-rounded">arrow_upward</span>${fmtMoney(spent)}</span>${
+        income ? `<span class="tx-total-chip tx-total-income"><span class="material-symbols-rounded">arrow_downward</span>${fmtMoney(income)}</span>` : ""
+      }`
     : "";
 
   if (!list.length) {

@@ -450,7 +450,16 @@ a { color: var(--md-primary); }
 .section-title { font-size: 18px; font-weight: 500; }
 .tx-count { font-size: 13px; color: var(--md-on-surface-variant); font-weight: 400; margin-left: 6px; }
 .tx-header-right { display: flex; align-items: baseline; gap: 14px; }
-.tx-total { font-size: 14px; color: var(--md-on-surface-variant); font-variant-numeric: tabular-nums; }
+.tx-total { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.tx-total-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600;
+  padding: 4px 9px; border-radius: 8px;
+  white-space: nowrap;
+}
+.tx-total-chip .material-symbols-rounded { font-size: 14px; }
+.tx-total-spent { background: var(--md-error-container); color: var(--md-on-error-container); }
+.tx-total-income { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
 .link-btn { font-size: 13px; font-weight: 500; color: var(--md-primary); }
 .link-btn:hover { text-decoration: underline; }
 
@@ -573,10 +582,17 @@ a { color: var(--md-primary); }
 .recurring-list li { font-size: 13px; line-height: 1.45; }
 .recurring-list p { font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.5; }
 
+.recurring-group-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .recurring-group-label {
   font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   color: var(--md-on-surface-variant);
-  margin: 0 0 8px;
+  margin: 0;
+}
+.recurring-group-total {
+  font-size: 12.5px; font-weight: 700;
+  color: var(--md-on-surface);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .recurring-cards { display: flex; flex-direction: column; gap: 8px; }
 .recurring-card-item {
