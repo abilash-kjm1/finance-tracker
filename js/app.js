@@ -2,10 +2,10 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=32";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=32";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=32";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=32";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=33";
+import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=33";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=33";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=33";
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -106,7 +106,9 @@ const shortDate = (dateStr) => {
   const dt = new Date(y, m - 1, d);
   const opts = { month: "short", day: "numeric" };
   if (y !== new Date().getFullYear()) opts.year = "numeric";
-  return dt.toLocaleDateString("en-CA", opts);
+  const base = dt.toLocaleDateString("en-CA", opts);
+  const weekday = dt.toLocaleDateString("en-CA", { weekday: "short" });
+  return `${base} (${weekday})`;
 };
 const escapeHtml = (s) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
