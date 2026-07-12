@@ -614,7 +614,6 @@ a { color: var(--md-primary); }
    width, leaving a reserved gutter on the right for the sidebar. */
 @media (min-width: 1101px) {
   .content { max-width: none; margin: 0; padding-right: 340px; }
-  .content-main { max-width: 1080px; }
   .content-sidebar { display: flex; }
 }
 
