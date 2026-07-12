@@ -539,14 +539,22 @@ a { color: var(--md-primary); }
 .fab-label { display: inline; }
 
 /* ---------- Two-column layout with calendar/day sidebar (desktop) ---------- */
-.content-layout { display: flex; gap: 20px; align-items: flex-start; }
-.content-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.content-layout { display: block; }
+.content-main { display: flex; flex-direction: column; gap: 20px; }
+
+/* The sidebar is pinned to the actual viewport edge (not the centered,
+   max-width content column), so it always sits at the true right side
+   of the window and never needs the page to scroll to reach it. */
 .content-sidebar {
-  flex: none;
-  width: 320px;
-  display: flex; flex-direction: column; gap: 14px;
-  position: sticky;
-  top: 84px;
+  display: none;
+  flex-direction: column; gap: 14px;
+  position: fixed;
+  right: 20px;
+  top: calc(84px + env(safe-area-inset-top));
+  width: 300px;
+  max-height: calc(100dvh - 104px);
+  overflow-y: auto;
+  z-index: 10;
 }
 .calendar-card { padding: 16px; }
 .calendar-header { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
@@ -583,7 +591,7 @@ a { color: var(--md-primary); }
 .cal-day.cal-selected::after { background: var(--md-on-primary); }
 .calendar-clear { width: 100%; margin-top: 6px; justify-content: center; }
 
-.day-panel { padding: 16px; max-height: 480px; overflow-y: auto; }
+.day-panel { padding: 16px; flex: none; }
 .day-panel-total { font-size: 13px; color: var(--md-on-surface-variant); margin: 4px 0 10px; font-variant-numeric: tabular-nums; }
 .day-panel-empty { font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.5; }
 .day-panel-list { display: flex; flex-direction: column; gap: 2px; }
@@ -601,8 +609,13 @@ a { color: var(--md-primary); }
 .day-panel-amount.expense { color: var(--expense); }
 .day-panel-amount.income { color: var(--income); }
 
-@media (max-width: 1100px) {
-  .content-sidebar { display: none; }
+/* Above this width there's room for the fixed sidebar: drop the
+   centered max-width column so main content uses the full left/middle
+   width, leaving a reserved gutter on the right for the sidebar. */
+@media (min-width: 1101px) {
+  .content { max-width: none; margin: 0; padding-right: 340px; }
+  .content-main { max-width: 1080px; }
+  .content-sidebar { display: flex; }
 }
 
 /* ---------- Dialogs ---------- */
