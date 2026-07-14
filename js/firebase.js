@@ -38,27 +38,45 @@ function demoBackend() {
     dt.setDate(dt.getDate() - offset);
     return dt.toISOString().slice(0, 10);
   };
-  let txs = [
-    { id: "d1", date: d(0), vendor: "Tim Hortons", category: "Dining", type: "expense", cardType: "debit", cents: 745, note: "" },
-    { id: "d2", date: d(1), vendor: "Loblaws", category: "Groceries", type: "expense", cardType: "debit", cents: 8632, note: "weekly groceries" },
-    { id: "d3", date: d(2), vendor: "Presto", category: "Transport", type: "expense", cardType: "debit", cents: 4000, note: "transit top-up" },
-    { id: "d4", date: d(3), vendor: "Netflix", category: "Entertainment", type: "expense", cardType: "credit", cents: 1899, note: "" },
-    { id: "d5", date: d(5), vendor: "Payroll Deposit", category: "Other", type: "income", cardType: "debit", cents: 185000, note: "bi-weekly pay" },
-    { id: "d6", date: d(6), vendor: "Uber Eats", category: "Dining", type: "expense", cardType: "credit", cents: 3240, note: "" },
-    { id: "d7", date: d(9), vendor: "Shoppers Drug Mart", category: "Health", type: "expense", cardType: "debit", cents: 2310, note: "" },
-    { id: "d8", date: d(12), vendor: "Amazon.ca", category: "Shopping", type: "expense", cardType: "credit", cents: 5687, note: "" },
-    { id: "d9", date: d(34), vendor: "Bell Canada", category: "Bills", type: "expense", cardType: "debit", cents: 9500, note: "internet" },
-    { id: "d10", date: d(36), vendor: "Loblaws", category: "Groceries", type: "expense", cardType: "debit", cents: 10420, note: "" },
-    { id: "d11", date: d(38), vendor: "Cineplex", category: "Entertainment", type: "expense", cardType: "credit", cents: 2850, note: "" },
-    { id: "d12", date: d(65), vendor: "Canadian Tire", category: "Shopping", type: "expense", cardType: "credit", cents: 7823, note: "" },
-    { id: "d13", date: d(68), vendor: "Petro-Canada", category: "Transport", type: "expense", cardType: "debit", cents: 6200, note: "gas" },
-    { id: "d14", date: d(95), vendor: "Rogers", category: "Bills", type: "expense", cardType: "debit", cents: 6500, note: "phone" },
-  ];
-  let settings = { debitBalanceCents: 234580, debitBalanceAsOf: d(200), limitCents: 500000, usedCents: 89060, usedAsOf: d(200) };
+  const banks = {
+    cibc: {
+      txs: [
+        { id: "d1", date: d(0), vendor: "Tim Hortons", category: "Dining", type: "expense", cardType: "debit", cents: 745, note: "" },
+        { id: "d2", date: d(1), vendor: "Loblaws", category: "Groceries", type: "expense", cardType: "debit", cents: 8632, note: "weekly groceries" },
+        { id: "d3", date: d(2), vendor: "Presto", category: "Transport", type: "expense", cardType: "debit", cents: 4000, note: "transit top-up" },
+        { id: "d4", date: d(3), vendor: "Netflix", category: "Entertainment", type: "expense", cardType: "credit", cents: 1899, note: "" },
+        { id: "d5", date: d(5), vendor: "Payroll Deposit", category: "Other", type: "income", cardType: "debit", cents: 185000, note: "bi-weekly pay" },
+        { id: "d6", date: d(6), vendor: "Uber Eats", category: "Dining", type: "expense", cardType: "credit", cents: 3240, note: "" },
+        { id: "d7", date: d(9), vendor: "Shoppers Drug Mart", category: "Health", type: "expense", cardType: "debit", cents: 2310, note: "" },
+        { id: "d8", date: d(12), vendor: "Amazon.ca", category: "Shopping", type: "expense", cardType: "credit", cents: 5687, note: "" },
+        { id: "d9", date: d(34), vendor: "Bell Canada", category: "Bills", type: "expense", cardType: "debit", cents: 9500, note: "internet" },
+        { id: "d10", date: d(36), vendor: "Loblaws", category: "Groceries", type: "expense", cardType: "debit", cents: 10420, note: "" },
+        { id: "d11", date: d(38), vendor: "Cineplex", category: "Entertainment", type: "expense", cardType: "credit", cents: 2850, note: "" },
+        { id: "d12", date: d(65), vendor: "Canadian Tire", category: "Shopping", type: "expense", cardType: "credit", cents: 7823, note: "" },
+        { id: "d13", date: d(68), vendor: "Petro-Canada", category: "Transport", type: "expense", cardType: "debit", cents: 6200, note: "gas" },
+        { id: "d14", date: d(95), vendor: "Rogers", category: "Bills", type: "expense", cardType: "debit", cents: 6500, note: "phone" },
+      ],
+      settings: { debitBalanceCents: 234580, debitBalanceAsOf: d(200), limitCents: 500000, usedCents: 89060, usedAsOf: d(200) },
+    },
+    hdfc: {
+      txs: [
+        { id: "h1", date: d(0), vendor: "Credit Card Autopay", category: "Bills", type: "expense", cardType: "debit", cents: 45900, note: "" },
+        { id: "h2", date: d(2), vendor: "ABILASH KJM", category: "Other", type: "income", cardType: "debit", cents: 500000, note: "family transfer" },
+        { id: "h3", date: d(4), vendor: "Airtel Recharge", category: "Bills", type: "expense", cardType: "debit", cents: 39900, note: "" },
+        { id: "h4", date: d(7), vendor: "Amazon Pay", category: "Shopping", type: "expense", cardType: "debit", cents: 150400, note: "" },
+        { id: "h5", date: d(12), vendor: "CRED Club", category: "Bills", type: "expense", cardType: "debit", cents: 48000, note: "" },
+        { id: "h6", date: d(30), vendor: "Interest Paid", category: "Other", type: "income", cardType: "debit", cents: 900, note: "" },
+        { id: "h7", date: d(45), vendor: "YouTube", category: "Entertainment", type: "expense", cardType: "debit", cents: 14900, note: "" },
+      ],
+      settings: { debitBalanceCents: 27029, debitBalanceAsOf: d(200) },
+    },
+  };
+  let bankId = "cibc";
   let txCb = null, settingsCb = null;
   let nextId = 100;
-  const emitTx = () => txCb && txCb([...txs]);
-  const emitSettings = () => settingsCb && settingsCb({ ...settings });
+  const bank = () => banks[bankId];
+  const emitTx = () => txCb && txCb([...bank().txs]);
+  const emitSettings = () => settingsCb && settingsCb({ ...bank().settings });
 
   return {
     demo: true,
@@ -67,21 +85,22 @@ function demoBackend() {
     },
     async signIn() {},
     async signOut() { location.href = location.pathname; },
+    setBank(id) { bankId = banks[id] ? id : "cibc"; },
     subscribeTransactions(cb) { txCb = cb; emitTx(); return () => (txCb = null); },
     subscribeSettings(cb) { settingsCb = cb; emitSettings(); return () => (settingsCb = null); },
-    async addTransaction(tx) { txs.push({ ...tx, id: "demo-" + nextId++ }); emitTx(); },
-    async addTransactions(list) { for (const tx of list) txs.push({ ...tx, id: "demo-" + nextId++ }); emitTx(); },
+    async addTransaction(tx) { bank().txs.push({ ...tx, id: "demo-" + nextId++ }); emitTx(); },
+    async addTransactions(list) { for (const tx of list) bank().txs.push({ ...tx, id: "demo-" + nextId++ }); emitTx(); },
     async updateTransaction(id, patch) {
-      txs = txs.map((t) => (t.id === id ? { ...t, ...patch } : t));
+      bank().txs = bank().txs.map((t) => (t.id === id ? { ...t, ...patch } : t));
       emitTx();
     },
-    async deleteTransaction(id) { txs = txs.filter((t) => t.id !== id); emitTx(); },
+    async deleteTransaction(id) { bank().txs = bank().txs.filter((t) => t.id !== id); emitTx(); },
     async deleteTransactions(ids) {
       const idSet = new Set(ids);
-      txs = txs.filter((t) => !idSet.has(t.id));
+      bank().txs = bank().txs.filter((t) => !idSet.has(t.id));
       emitTx();
     },
-    async saveSettings(patch) { settings = { ...settings, ...patch }; emitSettings(); },
+    async saveSettings(patch) { bank().settings = { ...bank().settings, ...patch }; emitSettings(); },
   };
 }
 
@@ -96,8 +115,8 @@ async function firebaseBackend() {
   } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
   const {
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-    collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc,
-    writeBatch, query, orderBy,
+    collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
+    writeBatch, query, orderBy, getDocs, limit,
   } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
 
   const app = initializeApp(firebaseConfig);
@@ -125,17 +144,50 @@ async function firebaseBackend() {
   const provider = new GoogleAuthProvider();
 
   let uid = null;
-  const txCol = () => collection(db, "users", uid, "transactions");
-  const settingsDoc = () => doc(db, "users", uid, "settings", "profile");
+  let bankId = "cibc";
+  const txCol = () => collection(db, "users", uid, "banks", bankId, "transactions");
+  const settingsDoc = () => doc(db, "users", uid, "banks", bankId, "settings", "profile");
+
+  // One-time migration: the app used to store CIBC data at a flat
+  // users/{uid}/transactions path (implicitly "one bank"). If that old
+  // path still has data and the new users/{uid}/banks/cibc/transactions
+  // path is empty, copy it over once. The old path is left untouched —
+  // non-destructive, safe to leave as an orphaned leftover.
+  async function migrateLegacyCibcData() {
+    const oldTxCol = collection(db, "users", uid, "transactions");
+    const newTxCol = collection(db, "users", uid, "banks", "cibc", "transactions");
+    const [oldSnap, newSnap] = await Promise.all([
+      getDocs(query(oldTxCol, limit(1))),
+      getDocs(query(newTxCol, limit(1))),
+    ]);
+    if (oldSnap.empty || !newSnap.empty) return;
+
+    const allOldTx = await getDocs(oldTxCol);
+    const docs = allOldTx.docs;
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = writeBatch(db);
+      for (const d of docs.slice(i, i + 450)) batch.set(doc(newTxCol, d.id), d.data());
+      await batch.commit();
+    }
+
+    const oldSettingsSnap = await getDoc(doc(db, "users", uid, "settings", "profile"));
+    if (oldSettingsSnap.exists()) {
+      await setDoc(doc(db, "users", uid, "banks", "cibc", "settings", "profile"), oldSettingsSnap.data(), { merge: true });
+    }
+  }
 
   return {
     demo: false,
     onAuth(cb) {
       onAuthStateChanged(auth, (user) => {
         uid = user ? user.uid : null;
+        if (user) {
+          migrateLegacyCibcData().catch((err) => console.error("Legacy CIBC data migration failed:", err));
+        }
         cb(user);
       });
     },
+    setBank(id) { bankId = id; },
     async signIn() {
       try {
         await signInWithPopup(auth, provider);
@@ -170,15 +222,15 @@ async function firebaseBackend() {
       }
     },
     async updateTransaction(id, patch) {
-      await updateDoc(doc(db, "users", uid, "transactions", id), patch);
+      await updateDoc(doc(txCol(), id), patch);
     },
     async deleteTransaction(id) {
-      await deleteDoc(doc(db, "users", uid, "transactions", id));
+      await deleteDoc(doc(txCol(), id));
     },
     async deleteTransactions(ids) {
       for (let i = 0; i < ids.length; i += 450) {
         const batch = writeBatch(db);
-        for (const id of ids.slice(i, i + 450)) batch.delete(doc(db, "users", uid, "transactions", id));
+        for (const id of ids.slice(i, i + 450)) batch.delete(doc(txCol(), id));
         await batch.commit();
       }
     },

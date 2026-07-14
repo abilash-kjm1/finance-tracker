@@ -2,10 +2,46 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=39";
-import { parseCibcCsv, exportJson, guessCategory, cleanVendor } from "./csv.js?v=39";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=39";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=39";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=41";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=41";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc } from "./hdfc.js?v=41";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=41";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=41";
+
+// ---------- Banks ----------
+// Two fully separate banks, switchable from the top bar. Each has its own
+// Firestore-scoped data (see js/firebase.js), currency, and import format —
+// transactions never mix between them.
+const BANKS = {
+  cibc: {
+    id: "cibc", label: "CIBC", country: "Canada", currency: "CAD", symbol: "$", locale: "en-CA",
+    importLabel: "Import CIBC CSV",
+    importTitle: "Import CIBC CSV",
+    importHint: "In CIBC online banking, open your account → Download transactions → CSV, then choose the file here.",
+    fileAccept: ".csv,text/csv",
+    pickLabel: "Choose CSV file",
+    notFoundHint: "Couldn't find any transactions in this file. Make sure it's the CSV downloaded from CIBC online banking.",
+  },
+  hdfc: {
+    id: "hdfc", label: "HDFC", country: "India", currency: "INR", symbol: "₹", locale: "en-IN",
+    importLabel: "Import HDFC PDF Statement",
+    importTitle: "Import HDFC PDF statement",
+    importHint: "In HDFC NetBanking, download your account statement as a PDF, then choose the file here.",
+    fileAccept: ".pdf,application/pdf",
+    pickLabel: "Choose PDF statement",
+    notFoundHint: "Couldn't find any transactions in this file, or the statement summary block was missing. Make sure it's an HDFC account statement PDF.",
+  },
+};
+let activeBank = "cibc";
+function loadActiveBank() {
+  try {
+    const saved = localStorage.getItem("ft-active-bank");
+    if (saved && BANKS[saved]) activeBank = saved;
+  } catch {}
+}
+function saveActiveBank() {
+  try { localStorage.setItem("ft-active-bank", activeBank); } catch {}
+}
 
 export const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Bills",
@@ -90,8 +126,14 @@ function hexToRgbaString(hex, alpha) {
 
 // ---------- Utilities ----------
 const $ = (sel) => document.querySelector(sel);
-const moneyFmt = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
+let moneyFmt = new Intl.NumberFormat(BANKS.cibc.locale, { style: "currency", currency: BANKS.cibc.currency });
+function updateMoneyFormatter() {
+  const b = BANKS[activeBank];
+  moneyFmt = new Intl.NumberFormat(b.locale, { style: "currency", currency: b.currency });
+}
 const fmtMoney = (cents) => moneyFmt.format(cents / 100);
+const activeCleanVendor = (v) => (activeBank === "hdfc" ? cleanVendorHdfc(v) : cleanVendorCibc(v));
+const activeGuessCategory = (v) => (activeBank === "hdfc" ? guessCategoryHdfc(v) : guessCategoryCibc(v));
 const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -536,21 +578,21 @@ function parseAiRecurringPredictions(raw) {
 // (plus a manual refresh button), since this is a static site with no
 // backend to run a true fixed-time schedule — refreshing on app-open
 // when the cache is stale is the closest free equivalent.
-const RECURRING_CACHE_KEY = "ft-recurring-cache";
+const recurringCacheKey = () => `ft-recurring-cache-${activeBank}`;
 const RECURRING_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 let recurringCache = null; // { text, timestamp }
 let recurringCheckedThisSession = false;
 
 function loadRecurringCache() {
   try {
-    const raw = localStorage.getItem(RECURRING_CACHE_KEY);
+    const raw = localStorage.getItem(recurringCacheKey());
     recurringCache = raw ? JSON.parse(raw) : null;
   } catch {
     recurringCache = null;
   }
 }
 function saveRecurringCache() {
-  try { localStorage.setItem(RECURRING_CACHE_KEY, JSON.stringify(recurringCache)); } catch {}
+  try { localStorage.setItem(recurringCacheKey(), JSON.stringify(recurringCache)); } catch {}
 }
 
 function relativeTimeSince(ts) {
@@ -593,7 +635,7 @@ async function refreshRecurringChargesFromAI(force = false) {
   const btn = $("#btn-recurring-refresh");
   btn.classList.add("spinning");
   try {
-    const text = await askGeminiRecurringPrediction(transactions);
+    const text = await askGeminiRecurringPrediction(transactions, BANKS[activeBank]);
     recurringCache = { text, timestamp: Date.now() };
     saveRecurringCache();
   } catch (err) {
@@ -909,26 +951,39 @@ async function saveAccountsFromForm(e) {
   }
 }
 
-// ---------- CSV ----------
+// ---------- CSV / PDF import ----------
+// The same dialog markup is reused for both banks — CIBC imports a CSV,
+// HDFC imports a PDF statement — swapping title/hint/accept-filter text
+// based on which bank is currently active.
+function applyBankToImportUI() {
+  const b = BANKS[activeBank];
+  $("#dialog-csv-title").textContent = b.importTitle;
+  $("#dialog-csv-hint").textContent = b.importHint;
+  $("#csv-file").setAttribute("accept", b.fileAccept);
+  $("#btn-csv-pick").lastChild.textContent = b.pickLabel;
+  $("#menu-import-csv").lastChild.textContent = b.importLabel;
+}
+
 function openCsvDialog() {
   pendingCsv = null;
   $("#csv-preview").classList.add("hidden");
   $("#btn-csv-import").classList.add("hidden");
   $("#csv-file").value = "";
+  applyBankToImportUI();
   $("#dialog-csv").showModal();
 }
 
 // Identifies "the same transaction" across imports so re-uploading a
 // statement that overlaps a previous month doesn't create duplicates.
-const txSignature = (t) => `${t.date}|${t.cents}|${t.type}|${cleanVendor(t.vendor)}`;
+const txSignature = (t) => `${t.date}|${t.cents}|${t.type}|${activeCleanVendor(t.vendor)}`;
 
 async function handleCsvFile(file) {
-  const text = await file.text();
-  const { transactions: parsed, skipped } = parseCibcCsv(text);
+  const { transactions: parsed, skipped } =
+    activeBank === "hdfc" ? await parseHdfcPdf(await file.arrayBuffer()) : parseCibcCsv(await file.text());
   const preview = $("#csv-preview");
   preview.classList.remove("hidden");
   if (!parsed.length) {
-    preview.innerHTML = `Couldn't find any transactions in this file. Make sure it's the CSV downloaded from CIBC online banking.`;
+    preview.innerHTML = BANKS[activeBank].notFoundHint;
     pendingCsv = null;
     $("#btn-csv-import").classList.add("hidden");
     return;
@@ -983,7 +1038,7 @@ async function importCsv() {
 // touch already-saved rows).
 async function cleanUpVendorNames() {
   const dirty = transactions
-    .map((t) => ({ t, cleaned: cleanVendor(t.vendor) }))
+    .map((t) => ({ t, cleaned: activeCleanVendor(t.vendor) }))
     .filter(({ t, cleaned }) => cleaned && cleaned !== t.vendor);
 
   if (!dirty.length) {
@@ -1152,7 +1207,7 @@ async function submitAiQuestion(e) {
 
   try {
     const answer = hasGeminiKey()
-      ? await askGemini(question, transactions, settings, aiHistory)
+      ? await askGemini(question, transactions, settings, aiHistory, BANKS[activeBank])
       : "This is demo mode, so I can't actually call Gemini here — but once you add your API key, I'll answer using your real transaction data.";
     loadingRow.remove();
     appendAiMessage("model", answer);
@@ -1170,7 +1225,7 @@ async function submitAiQuestion(e) {
 
 // ---------- Menus ----------
 function toggleMenu(menu) {
-  const menus = ["#menu-more", "#menu-account"];
+  const menus = ["#menu-more", "#menu-account", "#menu-bank"];
   for (const m of menus) if (m !== menu) $(m).classList.add("hidden");
   $(menu).classList.toggle("hidden");
 }
@@ -1178,8 +1233,53 @@ document.addEventListener("click", (e) => {
   if (!e.target.closest(".top-bar-actions")) {
     $("#menu-more")?.classList.add("hidden");
     $("#menu-account")?.classList.add("hidden");
+    $("#menu-bank")?.classList.add("hidden");
   }
 });
+
+// ---------- Bank switcher ----------
+function renderBankMenu() {
+  $("#bank-switch-label").textContent = BANKS[activeBank].label;
+  $("#menu-bank").innerHTML = Object.values(BANKS)
+    .map(
+      (b) => `<button class="menu-item" data-bank="${b.id}">
+        <span class="material-symbols-rounded">account_balance</span>${b.label}
+        <span class="material-symbols-rounded menu-item-check${b.id === activeBank ? "" : " hidden"}">check</span>
+      </button>`
+    )
+    .join("");
+}
+
+// Resets everything scoped to "the bank you're currently looking at" so
+// switching never leaks state (filters, sort, cached AI predictions, the
+// day/calendar selection) from one bank into the other.
+function resetBankScopedState() {
+  filters = { month: "current", from: "", to: "", categories: new Set(), vendors: new Set(), search: "" };
+  sortKeys = [];
+  tablePage = 0;
+  vendorChipsExpanded = false;
+  calendarViewDate = new Date();
+  calendarSelectedDate = null;
+  aiHistory = [];
+  recurringCheckedThisSession = false;
+}
+
+function switchBank(bankId) {
+  if (bankId === activeBank || !BANKS[bankId]) return;
+  activeBank = bankId;
+  saveActiveBank();
+  updateMoneyFormatter();
+  resetBankScopedState();
+  loadRecurringCache();
+  renderBankMenu();
+
+  backend.setBank(activeBank);
+  unsubTx?.(); unsubSettings?.();
+  transactions = [];
+  settings = null;
+  unsubTx = backend.subscribeTransactions((list) => { transactions = list; renderAll(); });
+  unsubSettings = backend.subscribeSettings((s) => { settings = s; renderSummary(); });
+}
 
 // ---------- Event wiring ----------
 function wireEvents() {
@@ -1188,6 +1288,13 @@ function wireEvents() {
   });
   $("#btn-more").addEventListener("click", (e) => { e.stopPropagation(); toggleMenu("#menu-more"); });
   $("#btn-avatar").addEventListener("click", (e) => { e.stopPropagation(); toggleMenu("#menu-account"); });
+  $("#btn-bank").addEventListener("click", (e) => { e.stopPropagation(); toggleMenu("#menu-bank"); });
+  $("#menu-bank").addEventListener("click", (e) => {
+    const item = e.target.closest("[data-bank]");
+    if (!item) return;
+    toggleMenu("#menu-bank");
+    switchBank(item.dataset.bank);
+  });
   $("#menu-signout").addEventListener("click", () => backend.signOut());
   $("#menu-edit-accounts").addEventListener("click", () => { toggleMenu("#menu-more"); openAccountsDialog(); });
   $("#menu-import-csv").addEventListener("click", () => { toggleMenu("#menu-more"); openCsvDialog(); });
@@ -1223,7 +1330,7 @@ function wireEvents() {
   $("#tx-vendor").addEventListener("blur", () => {
     // Auto-suggest category from vendor if user hasn't picked one
     if ($("#tx-category").value === "Other" && $("#tx-vendor").value.trim() && !editingId) {
-      $("#tx-category").value = guessCategory($("#tx-vendor").value);
+      $("#tx-category").value = activeGuessCategory($("#tx-vendor").value);
     }
   });
 
@@ -1399,6 +1506,9 @@ function showScreen(which) {
 let unsubTx = null, unsubSettings = null;
 
 async function main() {
+  loadActiveBank();
+  updateMoneyFormatter();
+  renderBankMenu();
   loadRecurringCache();
   if (!isConfigured && !isDemo) {
     showScreen("setup");
@@ -1406,6 +1516,7 @@ async function main() {
   }
 
   backend = await createBackend();
+  backend.setBank(activeBank);
   wireEvents();
   if (backend.demo) $("#demo-banner").classList.remove("hidden");
 

@@ -27,11 +27,12 @@ export function hasGeminiKey() {
   return getGeminiKey().length > 0;
 }
 
-const SYSTEM_PREAMBLE = `You are a helpful personal finance assistant built into a CIBC spending
-tracker for a user in Canada. You answer questions about the user's own transaction data below.
+function systemPreamble(bank) {
+  return `You are a helpful personal finance assistant built into a spending
+tracker. You are currently answering about the user's ${bank.label} account (${bank.country}). You answer questions about the user's own transaction data below.
 
 Rules:
-- Amounts are in CAD cents; always show answers formatted as dollars (e.g. $42.50).
+- Amounts are in ${bank.currency} cents; always show answers formatted as currency (e.g. ${bank.symbol}42.50).
 - Do the arithmetic yourself from the raw data — don't ask the user to calculate.
 - Be concise: a few sentences or a short list, not an essay.
 - Formatting: use **bold** only for key labels/numbers, and "* " bullet points for
@@ -41,17 +42,18 @@ Rules:
   "Month D, YYYY" (e.g. "July 3, 2026") and always tag each amount with "(Income)"
   or "(Expense)" right after it — these get auto-highlighted in the UI, so the
   exact wording "(Income)"/"(Expense)" matters.
-- "Debit" transactions are from their chequing account; "Credit" are from their credit card.
+- "Debit" transactions are from their main account; "Credit" are from a credit card/facility.
 - If the data doesn't contain enough to answer, say so plainly instead of guessing.
 - You are not a licensed financial advisor — for real investment or debt advice, say so and
   suggest they consult one. General budgeting observations from their own data are fine.`;
+}
 
 function formatTransactionsForPrompt(transactions) {
   // Compact CSV-ish format keeps token usage low even with years of history.
   const lines = transactions
     .slice(0, 3000)
     .map((t) => `${t.date},${t.vendor},${t.category},${t.cardType || "debit"},${t.type},${(t.cents / 100).toFixed(2)}`);
-  return `date,vendor,category,card,type,amount_cad\n${lines.join("\n")}`;
+  return `date,vendor,category,card,type,amount\n${lines.join("\n")}`;
 }
 
 function formatAccountsForPrompt(settings) {
@@ -88,9 +90,11 @@ async function callGemini(systemText, contents) {
   return text;
 }
 
+// bank: { label, country, currency, symbol } — identifies which of the
+// user's (fully separate) banks this question/prediction is about.
 // history: [{ role: "user"|"model", text }]. Returns the model's reply text.
-export async function askGemini(question, transactions, settings, history) {
-  const systemText = `${SYSTEM_PREAMBLE}\n\nAccount summary: ${formatAccountsForPrompt(settings)}\n\nTransactions:\n${formatTransactionsForPrompt(transactions)}`;
+export async function askGemini(question, transactions, settings, history, bank) {
+  const systemText = `${systemPreamble(bank)}\n\nAccount summary: ${formatAccountsForPrompt(settings)}\n\nTransactions:\n${formatTransactionsForPrompt(transactions)}`;
   const contents = [
     ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
     { role: "user", parts: [{ text: question }] },
@@ -103,19 +107,19 @@ export async function askGemini(question, transactions, settings, history) {
 // cancelled (no charge in over one full interval), catch weekly/biweekly/
 // monthly cadences, and format as a bulleted "(Expense)" list so it
 // renders through the same date/tag highlighting as the chat panel.
-export async function askGeminiRecurringPrediction(transactions) {
+export async function askGeminiRecurringPrediction(transactions, bank) {
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
   const ninetyDaysAgo = new Date(today.getTime() - 90 * 86400000).toISOString().slice(0, 10);
   const nextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
 
   const recent = transactions.filter((t) => t.type === "expense" && t.date >= ninetyDaysAgo);
-  const systemText = `You are analyzing a Canadian user's CIBC transaction history to predict upcoming recurring charges.
+  const systemText = `You are analyzing a ${bank.label} (${bank.country}) transaction history to predict upcoming recurring charges. Amounts are in ${bank.currency}.
 
 Today's date is ${todayStr}. Predict recurring expenses through ${nextMonth} (the remainder of this month and next month).
 
-Transactions from the last 90 days (${ninetyDaysAgo} to ${todayStr}), CSV format date,vendor,category,card,amount_cad:
-${["date,vendor,category,card,amount_cad", ...recent.map((t) => `${t.date},${t.vendor},${t.category},${t.cardType || "debit"},${(t.cents / 100).toFixed(2)}`)].join("\n")}
+Transactions from the last 90 days (${ninetyDaysAgo} to ${todayStr}), CSV format date,vendor,category,card,amount:
+${["date,vendor,category,card,amount", ...recent.map((t) => `${t.date},${t.vendor},${t.category},${t.cardType || "debit"},${(t.cents / 100).toFixed(2)}`)].join("\n")}
 
 Follow these strict rules:
 1. Only consider active recurring charges that have appeared within this 90-day window.
@@ -125,7 +129,7 @@ Follow these strict rules:
 3. Identify weekly, bi-weekly, and monthly patterns.
 4. Format the output as a simple bulleted list ("* " prefix), using the "Month D, YYYY" date
    format for each predicted date, and tag each amount with "(Expense)" immediately after it —
-   e.g. "* July 28, 2026 — Rogers Wireless — $89.91 (Expense)".
+   e.g. "* July 28, 2026 — Rogers Wireless — ${bank.symbol}89.91 (Expense)".
 5. Output only the bulleted list — no preamble, no summary paragraph, no closing remarks.
    If nothing qualifies, output exactly: "No active recurring charges detected."`;
 

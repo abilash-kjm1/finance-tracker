@@ -220,6 +220,22 @@ a { color: var(--md-primary); }
 .avatar-btn img[src]:not([src=""]) { display: block; }
 .avatar-fallback { font-weight: 500; color: var(--md-on-primary-container); }
 
+.bank-switch-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 36px; padding: 0 12px 0 14px;
+  border-radius: 100px;
+  border: 1px solid var(--md-outline-variant);
+  font-size: 13.5px; font-weight: 500;
+  color: var(--md-on-surface-variant);
+  background: transparent;
+  margin-right: 4px;
+  transition: background-color .18s ease;
+}
+.bank-switch-btn:hover { background: var(--md-surface-container-high); }
+.bank-switch-btn .material-symbols-rounded { font-size: 18px; }
+.bank-switch-caret { font-size: 20px !important; margin-left: -2px; }
+.menu-item-check { margin-left: auto; font-size: 18px !important; color: var(--md-primary) !important; }
+
 /* ---------- Menus ---------- */
 .menu {
   position: absolute; top: 52px; right: 0; z-index: 50;
