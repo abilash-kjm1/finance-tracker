@@ -14,7 +14,7 @@
 //      statement's own Debits/Credits/Closing Bal checksum.
 // ============================================================
 
-import { CATEGORIES } from "./app.js?v=49";
+import { CATEGORIES } from "./app.js?v=50";
 
 const PDFJS_VERSION = "4.4.168";
 const PDFJS_LIB_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`;
@@ -100,7 +100,9 @@ export function cleanVendorHdfc(raw) {
 }
 
 // ---------- Raw PDF text → line-grouped transaction blocks ----------
-const TX_START_RE = /^(\d{2}\/\d{2}\/\d{2})\s/;
+// Newer statements use DD/MM/YY (2-digit year); older ones (e.g. 2023) use
+// DD/MM/YYYY (4-digit) — support both.
+const TX_START_RE = /^(\d{2}\/\d{2}\/\d{2,4})\s/;
 // Lines that always mean "we've left transaction territory until the next
 // date-prefixed line" — page headers/footers, account/address blocks, the
 // closing disclaimer. Anchored on fixed template text (not the account
@@ -108,17 +110,18 @@ const TX_START_RE = /^(\d{2}\/\d{2}\/\d{2})\s/;
 const BOILERPLATE_ANCHOR_RE = /^(Page No|MR\.\s|JOINT HOLDERS|Generated On:|This is a computer generated|Date Narration)/i;
 const SUMMARY_START_RE = /^STATEMENT SUMMARY/i;
 const STRAY_FRAGMENT_RE = /^[A-Za-z]{1,2}$/; // leftover single/double-letter noise
-// Last occurrence of "DD/MM/YY  amount  balance" in a joined transaction blob.
-const TRAILING_RE = /(\d{2}\/\d{2}\/\d{2})\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})(?!.*\d{2}\/\d{2}\/\d{2}\s+-?[\d,]+\.\d{2}\s+-?[\d,]+\.\d{2})/;
+// Last occurrence of "DD/MM/YY(YY)  amount  balance" in a joined transaction blob.
+const TRAILING_RE = /(\d{2}\/\d{2}\/\d{2,4})\s+(-?[\d,]+\.\d{2})\s+(-?[\d,]+\.\d{2})(?!.*\d{2}\/\d{2}\/\d{2,4}\s+-?[\d,]+\.\d{2}\s+-?[\d,]+\.\d{2})/;
 
 function parseMoneyToCents(raw) {
   const n = parseFloat(String(raw).replace(/,/g, ""));
   return Math.round(n * 100);
 }
 
-function ddmmyyToIso(ddmmyy) {
-  const [d, m, yy] = ddmmyy.split("/");
-  return `20${yy}-${m}-${d}`;
+function ddmmyyToIso(ddmmyyyy) {
+  const [d, m, y] = ddmmyyyy.split("/");
+  const year = y.length === 2 ? `20${y}` : y;
+  return `${year}-${m}-${d}`;
 }
 
 // Parses the full extracted text of an HDFC statement into raw transaction
@@ -309,6 +312,10 @@ async function extractPdfTextViaOcr(arrayBuffer, onProgress, password) {
 
   const { createWorker } = await loadTesseract();
   const worker = await createWorker("eng");
+  // PSM 6 (uniform block of text) reads statement tables noticeably more
+  // faithfully than the default auto-segmentation mode, which tends to
+  // scramble column order on dense tables.
+  await worker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" });
 
   let fullText = "";
   let pagesFailed = 0;
@@ -316,7 +323,10 @@ async function extractPdfTextViaOcr(arrayBuffer, onProgress, password) {
     for (let i = 1; i <= pdf.numPages; i++) {
       onProgress?.(i, pdf.numPages);
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.5 });
+      // Higher scale meaningfully improves OCR accuracy on dense small-print
+      // statement tables — verified against a real problem statement, going
+      // from ~0 usable rows at 2.5x to a majority correctly reconciling at 4x.
+      const viewport = page.getViewport({ scale: 4 });
       let canvas;
       try {
         canvas = await renderPageToCanvas(page, viewport);
