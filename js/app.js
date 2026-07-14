@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=47";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=47";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc } from "./hdfc.js?v=47";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=47";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=47";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=48";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=48";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=48";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=48";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=48";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -964,10 +964,16 @@ function applyBankToImportUI() {
   $("#menu-import-csv").lastChild.textContent = b.importLabel;
 }
 
+let pendingCsvFile = null;
+
 function openCsvDialog() {
   pendingCsv = null;
+  pendingCsvFile = null;
   $("#csv-preview").classList.add("hidden");
   $("#btn-csv-import").classList.add("hidden");
+  $("#csv-password-row").classList.add("hidden");
+  $("#btn-csv-unlock").classList.add("hidden");
+  $("#csv-password").value = "";
   $("#csv-file").value = "";
   applyBankToImportUI();
   $("#dialog-csv").showModal();
@@ -977,9 +983,12 @@ function openCsvDialog() {
 // statement that overlaps a previous month doesn't create duplicates.
 const txSignature = (t) => `${t.date}|${t.cents}|${t.type}|${activeCleanVendor(t.vendor)}`;
 
-async function handleCsvFile(file) {
+async function handleCsvFile(file, password) {
+  pendingCsvFile = file;
   const preview = $("#csv-preview");
   preview.classList.remove("hidden");
+  $("#csv-password-row").classList.add("hidden");
+  $("#btn-csv-unlock").classList.add("hidden");
 
   let parsed, skipped, usedOcr, summaryVerified;
   try {
@@ -987,12 +996,22 @@ async function handleCsvFile(file) {
       preview.innerHTML = "Reading statement…";
       ({ transactions: parsed, skipped, usedOcr, summaryVerified } = await parseHdfcPdf(
         await file.arrayBuffer(),
-        (page, total) => { preview.innerHTML = `Reading page ${page} of ${total} using text recognition (this PDF has no text layer)…`; }
+        (page, total) => { preview.innerHTML = `Reading page ${page} of ${total} using text recognition (this PDF has no text layer)…`; },
+        password
       ));
     } else {
       ({ transactions: parsed, skipped } = parseCibcCsv(await file.text()));
     }
   } catch (err) {
+    if (err instanceof PdfPasswordRequiredError) {
+      preview.innerHTML = err.wrongPassword ? "That password didn't work — try again." : "This PDF is password protected — enter the password below.";
+      $("#csv-password-row").classList.remove("hidden");
+      $("#btn-csv-unlock").classList.remove("hidden");
+      $("#btn-csv-import").classList.add("hidden");
+      $("#csv-password").value = "";
+      $("#csv-password").focus();
+      return;
+    }
     console.error(err);
     preview.innerHTML = `Couldn't read this file: ${escapeHtml(err.message)}`;
     pendingCsv = null;
@@ -1368,6 +1387,9 @@ function wireEvents() {
   // CSV dialog
   $("#btn-csv-pick").addEventListener("click", () => $("#csv-file").click());
   $("#csv-file").addEventListener("change", (e) => e.target.files[0] && handleCsvFile(e.target.files[0]));
+  $("#btn-csv-unlock").addEventListener("click", () => {
+    if (pendingCsvFile) handleCsvFile(pendingCsvFile, $("#csv-password").value);
+  });
   $("#btn-csv-import").addEventListener("click", importCsv);
   $("#btn-csv-cancel").addEventListener("click", () => $("#dialog-csv").close());
 

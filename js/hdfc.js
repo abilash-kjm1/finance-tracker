@@ -14,7 +14,7 @@
 //      statement's own Debits/Credits/Closing Bal checksum.
 // ============================================================
 
-import { CATEGORIES } from "./app.js?v=47";
+import { CATEGORIES } from "./app.js?v=48";
 
 const PDFJS_VERSION = "4.4.168";
 const PDFJS_LIB_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`;
@@ -239,14 +239,34 @@ function loadTesseract() {
   return tesseractLibPromise;
 }
 
-// pdf.js transfers (and detaches) whichever ArrayBuffer it's given, so
-// each call needs its own copy — the OCR fallback below re-opens the same
-// original buffer if the text-layer pass here comes up empty.
-async function extractPdfText(arrayBuffer) {
+// Thrown when a PDF needs a password we don't have (yet) — a distinct type
+// so the UI can show a password field instead of a generic error.
+export class PdfPasswordRequiredError extends Error {
+  constructor(wrongPassword) {
+    super(wrongPassword ? "Incorrect password." : "This PDF is password protected.");
+    this.wrongPassword = wrongPassword;
+  }
+}
+
+async function openPdf(pdfjsLib, arrayBuffer, password) {
+  try {
+    // pdf.js transfers (and detaches) whichever ArrayBuffer it's given, so
+    // each call needs its own copy — a caller may reopen the same original
+    // buffer for the OCR fallback if the text-layer pass comes up empty.
+    return await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: password || undefined }).promise;
+  } catch (err) {
+    if (err?.name === "PasswordException") {
+      throw new PdfPasswordRequiredError(err.code === 2 /* INCORRECT_PASSWORD */ && !!password);
+    }
+    throw err;
+  }
+}
+
+async function extractPdfText(arrayBuffer, password) {
   const pdfjsLib = await loadPdfjs();
   pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
 
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+  const pdf = await openPdf(pdfjsLib, arrayBuffer, password);
   let fullText = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -282,10 +302,10 @@ function renderPageToCanvas(page, viewport) {
 // rasterize each page via pdf.js and read it with Tesseract OCR. Feeds into
 // the exact same line-based parser as the text-layer path, so the rest of
 // the pipeline doesn't need to know which extraction method was used.
-async function extractPdfTextViaOcr(arrayBuffer, onProgress) {
+async function extractPdfTextViaOcr(arrayBuffer, onProgress, password) {
   const pdfjsLib = await loadPdfjs();
   pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+  const pdf = await openPdf(pdfjsLib, arrayBuffer, password);
 
   const { createWorker } = await loadTesseract();
   const worker = await createWorker("eng");
@@ -321,12 +341,12 @@ async function extractPdfTextViaOcr(arrayBuffer, onProgress) {
 // (preview, dedup, import) works unchanged regardless of which bank is
 // active. `usedOcr`/`summaryVerified` let the UI warn when the read is
 // less trustworthy than a normal digital-statement import.
-export async function parseHdfcPdf(arrayBuffer, onProgress) {
-  let text = await extractPdfText(arrayBuffer);
+export async function parseHdfcPdf(arrayBuffer, onProgress, password) {
+  let text = await extractPdfText(arrayBuffer, password);
   let usedOcr = false;
   if (!looksLikeStatementText(text)) {
     usedOcr = true;
-    text = await extractPdfTextViaOcr(arrayBuffer, onProgress);
+    text = await extractPdfTextViaOcr(arrayBuffer, onProgress, password);
   }
 
   const { rows, summary } = parseHdfcText(text);
