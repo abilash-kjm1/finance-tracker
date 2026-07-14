@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=43";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=43";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc } from "./hdfc.js?v=43";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=43";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=43";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=47";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=47";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc } from "./hdfc.js?v=47";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=47";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=47";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -978,12 +978,38 @@ function openCsvDialog() {
 const txSignature = (t) => `${t.date}|${t.cents}|${t.type}|${activeCleanVendor(t.vendor)}`;
 
 async function handleCsvFile(file) {
-  const { transactions: parsed, skipped } =
-    activeBank === "hdfc" ? await parseHdfcPdf(await file.arrayBuffer()) : parseCibcCsv(await file.text());
   const preview = $("#csv-preview");
   preview.classList.remove("hidden");
+
+  let parsed, skipped, usedOcr, summaryVerified;
+  try {
+    if (activeBank === "hdfc") {
+      preview.innerHTML = "Reading statement…";
+      ({ transactions: parsed, skipped, usedOcr, summaryVerified } = await parseHdfcPdf(
+        await file.arrayBuffer(),
+        (page, total) => { preview.innerHTML = `Reading page ${page} of ${total} using text recognition (this PDF has no text layer)…`; }
+      ));
+    } else {
+      ({ transactions: parsed, skipped } = parseCibcCsv(await file.text()));
+    }
+  } catch (err) {
+    console.error(err);
+    preview.innerHTML = `Couldn't read this file: ${escapeHtml(err.message)}`;
+    pendingCsv = null;
+    $("#btn-csv-import").classList.add("hidden");
+    return;
+  }
+
+  const ocrNote = usedOcr
+    ? `<br /><em>${summaryVerified === false ? "⚠️ " : ""}This PDF had no text layer, so it was read using text recognition (OCR)${
+        summaryVerified === false ? " and the totals didn't match the statement's own summary" : ""
+      } — please double-check the imported amounts carefully.</em>`
+    : "";
+
   if (!parsed.length) {
-    preview.innerHTML = BANKS[activeBank].notFoundHint;
+    preview.innerHTML = usedOcr
+      ? "Text recognition couldn't find any transactions in this scanned PDF. Try a clearer scan, or re-download a digital statement if your bank offers one."
+      : BANKS[activeBank].notFoundHint;
     pendingCsv = null;
     $("#btn-csv-import").classList.add("hidden");
     return;
@@ -1006,7 +1032,7 @@ async function handleCsvFile(file) {
     : "";
 
   if (!deduped.length) {
-    preview.innerHTML = `All ${parsed.length} transactions in this file were already imported — nothing new to add.${dupNote}`;
+    preview.innerHTML = `All ${parsed.length} transactions in this file were already imported — nothing new to add.${dupNote}${ocrNote}`;
     $("#btn-csv-import").classList.add("hidden");
     return;
   }
@@ -1015,7 +1041,7 @@ async function handleCsvFile(file) {
   const dates = deduped.map((t) => t.date).sort();
   preview.innerHTML = `<strong>${deduped.length} new transaction${deduped.length === 1 ? "" : "s"}</strong> found (${shortDate(dates[0])} – ${shortDate(dates[dates.length - 1])})<br />
     Total spending: <strong>${fmtMoney(spent)}</strong><br />
-    Categories auto-guessed from vendor names — you can edit any row later.${skipped ? `<br /><em>${skipped} unreadable line(s) skipped.</em>` : ""}${dupNote}`;
+    Categories auto-guessed from vendor names — you can edit any row later.${skipped ? `<br /><em>${skipped} unreadable line(s) skipped.</em>` : ""}${dupNote}${ocrNote}`;
   $("#btn-csv-import").classList.remove("hidden");
 }
 

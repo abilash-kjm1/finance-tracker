@@ -14,11 +14,19 @@
 //      statement's own Debits/Credits/Closing Bal checksum.
 // ============================================================
 
-import { CATEGORIES } from "./app.js?v=43";
+import { CATEGORIES } from "./app.js?v=47";
 
 const PDFJS_VERSION = "4.4.168";
 const PDFJS_LIB_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`;
 const PDFJS_WORKER_SRC = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
+
+// Some older HDFC statements are scanned images with no text layer at all
+// (nothing for pdf.js to extract). Tesseract.js (CDN-loaded, same
+// no-build-step pattern as pdf.js) rasterizes each page and OCRs it as a
+// fallback — much slower and less reliable than reading real text, so
+// callers surface that to the user via the `usedOcr`/`summaryVerified` flags.
+const TESSERACT_VERSION = "5.1.1";
+const TESSERACT_LIB_URL = `https://cdn.jsdelivr.net/npm/tesseract.js@${TESSERACT_VERSION}/dist/tesseract.esm.min.js`;
 
 // ---------- Vendor cleanup + category guessing for Indian vendors ----------
 const SPECIAL_LABELS = [
@@ -223,11 +231,22 @@ function loadPdfjs() {
   return pdfjsLibPromise;
 }
 
+let tesseractLibPromise = null;
+function loadTesseract() {
+  // The ESM build only exposes a default export (an object with
+  // createWorker etc. as properties), not named exports.
+  if (!tesseractLibPromise) tesseractLibPromise = import(TESSERACT_LIB_URL).then((mod) => mod.default);
+  return tesseractLibPromise;
+}
+
+// pdf.js transfers (and detaches) whichever ArrayBuffer it's given, so
+// each call needs its own copy — the OCR fallback below re-opens the same
+// original buffer if the text-layer pass here comes up empty.
 async function extractPdfText(arrayBuffer) {
   const pdfjsLib = await loadPdfjs();
   pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
 
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
   let fullText = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -237,17 +256,89 @@ async function extractPdfText(arrayBuffer) {
   return fullText;
 }
 
-// Returns { transactions: [...], skipped: n } — same shape as parseCibcCsv,
-// so the rest of the CSV-import UI flow (preview, dedup, import) works
-// unchanged regardless of which bank is active.
-export async function parseHdfcPdf(arrayBuffer) {
-  const text = await extractPdfText(arrayBuffer);
-  const { rows, summary } = parseHdfcText(text);
+// A real digitally-generated statement always has plenty of "DD/MM/YY"
+// date-prefixed lines; a scanned image PDF yields little to no text at all.
+function looksLikeStatementText(text) {
+  return text.trim().length > 100 && /\d{2}\/\d{2}\/\d{2}/.test(text);
+}
 
-  if (!summary) return { transactions: [], skipped: rows.length };
+// Some PDFs (unusual/broken embedded fonts, corrupted content streams) make
+// pdf.js's renderer hang indefinitely on a page instead of erroring — seen
+// in practice with at least one real HDFC statement. A per-page timeout
+// turns that into a clean skip instead of freezing the import forever.
+const PAGE_RENDER_TIMEOUT_MS = 8000;
+function renderPageToCanvas(page, viewport) {
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const renderTask = page.render({ canvasContext: canvas.getContext("2d"), viewport });
+  const timeout = new Promise((_, reject) => {
+    setTimeout(() => { renderTask.cancel(); reject(new Error("timed out")); }, PAGE_RENDER_TIMEOUT_MS);
+  });
+  return Promise.race([renderTask.promise, timeout]).then(() => canvas);
+}
+
+// Fallback for scanned/image-only PDFs (or ones with no usable text layer):
+// rasterize each page via pdf.js and read it with Tesseract OCR. Feeds into
+// the exact same line-based parser as the text-layer path, so the rest of
+// the pipeline doesn't need to know which extraction method was used.
+async function extractPdfTextViaOcr(arrayBuffer, onProgress) {
+  const pdfjsLib = await loadPdfjs();
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+
+  const { createWorker } = await loadTesseract();
+  const worker = await createWorker("eng");
+
+  let fullText = "";
+  let pagesFailed = 0;
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      onProgress?.(i, pdf.numPages);
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.5 });
+      let canvas;
+      try {
+        canvas = await renderPageToCanvas(page, viewport);
+      } catch {
+        pagesFailed++;
+        continue; // this page couldn't be rendered — skip it, keep going
+      }
+      const { data } = await worker.recognize(canvas);
+      fullText += data.text + "\n";
+    }
+    if (pagesFailed === pdf.numPages) {
+      throw new Error("This PDF's pages couldn't be read at all (a rendering problem, not just missing text) — try re-downloading the statement, or opening it in a PDF reader and re-saving/printing it to a new PDF first.");
+    }
+  } finally {
+    await worker.terminate();
+  }
+  return fullText;
+}
+
+// Returns { transactions, skipped, usedOcr, summaryVerified } — the first
+// two match parseCibcCsv's shape so the rest of the CSV-import UI flow
+// (preview, dedup, import) works unchanged regardless of which bank is
+// active. `usedOcr`/`summaryVerified` let the UI warn when the read is
+// less trustworthy than a normal digital-statement import.
+export async function parseHdfcPdf(arrayBuffer, onProgress) {
+  let text = await extractPdfText(arrayBuffer);
+  let usedOcr = false;
+  if (!looksLikeStatementText(text)) {
+    usedOcr = true;
+    text = await extractPdfTextViaOcr(arrayBuffer, onProgress);
+  }
+
+  const { rows, summary } = parseHdfcText(text);
+  if (!summary) return { transactions: [], skipped: rows.length, usedOcr, summaryVerified: false };
 
   const classified = inferDebitCredit(rows, summary.opening);
   const skipped = rows.length - classified.length;
+
+  const debitsSum = classified.filter((r) => r.type === "expense").reduce((a, r) => a + r.amountCents, 0);
+  const creditsSum = classified.filter((r) => r.type === "income").reduce((a, r) => a + r.amountCents, 0);
+  const finalBalance = classified.length ? classified[classified.length - 1].balanceCents : summary.opening;
+  const summaryVerified = debitsSum === summary.debits && creditsSum === summary.credits && finalBalance === summary.closing;
 
   const transactions = classified.map((r) => {
     const vendor = cleanVendorHdfc(r.narration);
@@ -263,5 +354,5 @@ export async function parseHdfcPdf(arrayBuffer) {
     };
   });
 
-  return { transactions, skipped };
+  return { transactions, skipped, usedOcr, summaryVerified };
 }
