@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=41";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=41";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc } from "./hdfc.js?v=41";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=41";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=41";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=43";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=43";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc } from "./hdfc.js?v=43";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=43";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=43";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -1272,6 +1272,7 @@ function switchBank(bankId) {
   resetBankScopedState();
   loadRecurringCache();
   renderBankMenu();
+  applyBankToImportUI();
 
   backend.setBank(activeBank);
   unsubTx?.(); unsubSettings?.();
@@ -1509,6 +1510,7 @@ async function main() {
   loadActiveBank();
   updateMoneyFormatter();
   renderBankMenu();
+  applyBankToImportUI();
   loadRecurringCache();
   if (!isConfigured && !isDemo) {
     showScreen("setup");

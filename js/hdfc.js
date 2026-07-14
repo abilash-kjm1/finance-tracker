@@ -14,7 +14,7 @@
 //      statement's own Debits/Credits/Closing Bal checksum.
 // ============================================================
 
-import { CATEGORIES } from "./app.js?v=41";
+import { CATEGORIES } from "./app.js?v=43";
 
 const PDFJS_VERSION = "4.4.168";
 const PDFJS_LIB_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`;
