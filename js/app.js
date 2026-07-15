@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=52";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=52";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=52";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=52";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=52";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=53";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=53";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=53";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=53";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=53";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -312,6 +312,81 @@ function computeCreditUsed() {
   return Math.max(0, used);
 }
 
+// ---------- Summary card sparklines (dark mode only) ----------
+// Each series re-derives its running value at N past days directly from
+// the same balance-delta logic as the live figure above, rather than
+// requiring a separate stored history.
+function dateNDaysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function debitBalanceSeries(days = 14) {
+  if (!settings || settings.debitBalanceCents == null) return null;
+  const asOf = settings.debitBalanceAsOf || "1900-01-01";
+  const base = settings.debitBalanceCents;
+  const points = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const cutoff = dateNDaysAgo(i);
+    let bal = base;
+    for (const t of transactions) {
+      if ((t.cardType || "debit") !== "debit") continue;
+      if (t.date >= asOf && t.date <= cutoff) bal += t.type === "income" ? t.cents : -t.cents;
+    }
+    points.push(bal);
+  }
+  return points;
+}
+
+function creditUsedSeries(days = 14) {
+  const base = settings?.usedCents ?? 0;
+  const asOf = settings?.usedAsOf;
+  if (!asOf) return null;
+  const points = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const cutoff = dateNDaysAgo(i);
+    let used = base;
+    for (const t of transactions) {
+      if (t.cardType !== "credit") continue;
+      if (t.date >= asOf && t.date <= cutoff) used += t.type === "expense" ? t.cents : -t.cents;
+    }
+    points.push(Math.max(0, used));
+  }
+  return points;
+}
+
+function monthSpendSeries() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const daysSoFar = now.getDate();
+  if (daysSoFar < 2) return null; // too early in the month for a meaningful trend
+  const daily = new Array(daysSoFar).fill(0);
+  for (const t of transactions) {
+    if (t.type !== "expense") continue;
+    const [ty, tm, td] = t.date.split("-").map(Number);
+    if (ty === y && tm - 1 === m && td <= daysSoFar) daily[td - 1] += t.cents;
+  }
+  let sum = 0;
+  return daily.map((v) => (sum += v));
+}
+
+function renderSparkline(id, values) {
+  const svg = $(id);
+  if (!svg) return;
+  if (!values || values.length < 2 || values.every((v) => v === values[0])) {
+    svg.innerHTML = "";
+    return;
+  }
+  const width = 200, height = 26, pad = 3;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const stepX = (width - pad * 2) / (values.length - 1);
+  const points = values
+    .map((v, i) => `${(pad + i * stepX).toFixed(1)},${(pad + (height - pad * 2) * (1 - (v - min) / range)).toFixed(1)}`)
+    .join(" ");
+  svg.innerHTML = `<polyline points="${points}" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />`;
+}
+
 // ---------- Rendering ----------
 const countUpHandles = new WeakMap();
 function countUp(el, targetCents) {
@@ -374,6 +449,10 @@ function renderSummary() {
   } else {
     foot.textContent = "No spending last month";
   }
+
+  renderSparkline("#spark-balance", debitBalanceSeries());
+  renderSparkline("#spark-credit", creditUsedSeries());
+  renderSparkline("#spark-month", monthSpendSeries());
 }
 
 function renderMonthOptions() {

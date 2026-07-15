@@ -303,16 +303,16 @@ a { color: var(--md-primary); }
 .card-credit  { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .card-month   { background: var(--md-error-container); color: var(--md-on-error-container); }
 
-/* Dark mode: tinted backgrounds read as muddy, and colored body text
-   loses contrast against a dark surface — so keep the surface neutral
-   and clean, put identity only in a left accent bar + icon color, and
-   make the actual numbers plain bright white for maximum legibility. */
+/* Dark mode: "Outlined Minimal" — a near-black card with a thin border
+   reads as clean rather than muddy; identity comes from the icon color
+   and a small trend sparkline, not the surface itself, so the numbers
+   stay plain bright white for maximum legibility. */
 :root[data-theme="dark"] .card-balance,
 :root[data-theme="dark"] .card-credit,
 :root[data-theme="dark"] .card-month {
-  background: var(--md-surface-container-high);
+  background: var(--md-surface-container-lowest);
+  border: 1.5px solid var(--md-surface-container-high);
   color: #f2f2f3;
-  border-left: 4px solid var(--accent);
 }
 :root[data-theme="dark"] .card-balance { --accent: #6dd58c; }
 :root[data-theme="dark"] .card-credit  { --accent: #7fcfff; }
@@ -331,9 +331,16 @@ a { color: var(--md-primary); }
 :root[data-theme="dark"] .card-credit .card-label,
 :root[data-theme="dark"] .card-month .card-label {
   opacity: 1;
-  color: #e3e3e3;
+  color: var(--md-on-surface-variant);
 }
 :root[data-theme="dark"] .card-foot { color: rgba(227, 227, 227, 0.75); }
+
+.card-spark { display: none; width: 100%; height: 22px; margin: 6px 0 2px; }
+:root[data-theme="dark"] .card-spark {
+  display: block;
+  color: var(--accent);
+}
+:root[data-theme="dark"] .card-spark polyline { stroke: currentColor; }
 
 .card-label {
   display: flex; align-items: center; gap: 8px;
