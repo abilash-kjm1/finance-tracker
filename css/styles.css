@@ -303,32 +303,35 @@ a { color: var(--md-primary); }
 .card-credit  { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .card-month   { background: var(--md-error-container); color: var(--md-on-error-container); }
 
-/* Dark mode: a flat neutral gray with just a border made all three
-   cards look identical and lifeless. Give each its own dark tonal
-   surface (a subtle gradient for depth) with a bright accent color
-   for its icon/amount, so they read as distinct at a glance. */
-:root[data-theme="dark"] .card-balance {
-  background: linear-gradient(135deg, #15311f, #1c2e22);
-  color: #dcf5e2;
-  --accent: #6dd58c;
-}
-:root[data-theme="dark"] .card-credit {
-  background: linear-gradient(135deg, #0f2c46, #17293b);
-  color: #d7ecff;
-  --accent: #7fcfff;
-}
+/* Dark mode: tinted backgrounds read as muddy, and colored body text
+   loses contrast against a dark surface — so keep the surface neutral
+   and clean, put identity only in a left accent bar + icon color, and
+   make the actual numbers plain bright white for maximum legibility. */
+:root[data-theme="dark"] .card-balance,
+:root[data-theme="dark"] .card-credit,
 :root[data-theme="dark"] .card-month {
-  background: linear-gradient(135deg, #3d1517, #33191b);
-  color: #ffdedb;
-  --accent: #ffb4ab;
+  background: var(--md-surface-container-high);
+  color: #f2f2f3;
+  border-left: 4px solid var(--accent);
 }
+:root[data-theme="dark"] .card-balance { --accent: #6dd58c; }
+:root[data-theme="dark"] .card-credit  { --accent: #7fcfff; }
+:root[data-theme="dark"] .card-month   { --accent: #ffb4ab; }
 :root[data-theme="dark"] .card-balance .card-label .material-symbols-rounded,
-:root[data-theme="dark"] .card-balance .card-amount,
 :root[data-theme="dark"] .card-credit .card-label .material-symbols-rounded,
-:root[data-theme="dark"] .card-credit .card-amount,
-:root[data-theme="dark"] .card-month .card-label .material-symbols-rounded,
-:root[data-theme="dark"] .card-month .card-amount {
+:root[data-theme="dark"] .card-month .card-label .material-symbols-rounded {
   color: var(--accent);
+}
+:root[data-theme="dark"] .card-balance .card-amount,
+:root[data-theme="dark"] .card-credit .card-amount,
+:root[data-theme="dark"] .card-month .card-amount {
+  color: #f2f2f3;
+}
+:root[data-theme="dark"] .card-balance .card-label,
+:root[data-theme="dark"] .card-credit .card-label,
+:root[data-theme="dark"] .card-month .card-label {
+  opacity: 1;
+  color: #e3e3e3;
 }
 :root[data-theme="dark"] .card-foot { color: rgba(227, 227, 227, 0.75); }
 
