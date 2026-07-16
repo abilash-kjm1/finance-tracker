@@ -854,6 +854,10 @@ a { color: var(--md-primary); }
   max-height: 180px; overflow-y: auto;
 }
 
+/* ---------- Vendor / category detail popup ---------- */
+.dialog-detail { width: min(480px, calc(100vw - 24px)); }
+.detail-chart-wrap { height: 280px; }
+
 /* ---------- Ask AI ---------- */
 .dialog-ai { width: min(560px, calc(100vw - 24px)); padding: 20px; }
 .ai-panel { display: flex; flex-direction: column; gap: 14px; max-height: 82vh; }

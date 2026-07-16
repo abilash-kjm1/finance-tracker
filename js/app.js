@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=54";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=54";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=54";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=54";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=54";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=55";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=55";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=55";
+import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=55";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=55";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -979,6 +979,65 @@ function renderCharts() {
   renderTrendChart($("#chart-trend"), months, fmtMoney);
 }
 
+// ---------- Vendor / category detail popup ----------
+// Clicking a vendor or category chip opens a small popup with a chart
+// scoped to just that vendor/category — a monthly spending trend for a
+// vendor, or a top-vendors breakdown for a category. Uses all transactions
+// (not just the current filter/date scope), so the popup always shows the
+// full picture regardless of what's currently filtered on the dashboard.
+function openVendorDetail(vendor) {
+  const vendorTxs = transactions.filter((t) => t.vendor === vendor);
+  const spent = vendorTxs.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
+  const income = vendorTxs.filter((t) => t.type === "income").reduce((a, t) => a + t.cents, 0);
+
+  $("#detail-title").textContent = vendor;
+  $("#detail-stats").textContent =
+    `${vendorTxs.length} transaction${vendorTxs.length === 1 ? "" : "s"} · ${fmtMoney(spent)} spent` +
+    (income ? ` · ${fmtMoney(income)} received` : "");
+
+  $("#detail-chart-trend").classList.remove("hidden");
+  $("#detail-chart-breakdown").classList.add("hidden");
+
+  const months = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    months.push({
+      key,
+      label: d.toLocaleDateString("en-CA", { month: "short" }),
+      spentCents: vendorTxs
+        .filter((t) => t.type === "expense" && monthKey(t.date) === key)
+        .reduce((a, t) => a + t.cents, 0),
+    });
+  }
+  renderVendorTrendChart($("#detail-chart-trend"), months, fmtMoney);
+  $("#dialog-detail").showModal();
+}
+
+function openCategoryDetail(category) {
+  const catTxs = transactions.filter((t) => t.category === category && t.type === "expense");
+  const total = catTxs.reduce((a, t) => a + t.cents, 0);
+
+  $("#detail-title").textContent = category;
+  $("#detail-stats").textContent = catTxs.length
+    ? `${catTxs.length} transaction${catTxs.length === 1 ? "" : "s"} · ${fmtMoney(total)} spent`
+    : "No expenses in this category yet.";
+
+  $("#detail-chart-trend").classList.add("hidden");
+  $("#detail-chart-breakdown").classList.toggle("hidden", !catTxs.length);
+
+  if (catTxs.length) {
+    const byVendor = {};
+    for (const t of catTxs) byVendor[t.vendor] = (byVendor[t.vendor] || 0) + t.cents;
+    const topVendors = Object.fromEntries(
+      Object.entries(byVendor).sort((a, b) => b[1] - a[1]).slice(0, 8)
+    );
+    renderVendorBreakdownChart($("#detail-chart-breakdown"), topVendors, fmtMoney);
+  }
+  $("#dialog-detail").showModal();
+}
+
 function renderAll() {
   renderSummary();
   renderMonthOptions();
@@ -1540,6 +1599,9 @@ function wireEvents() {
   $("#btn-csv-import").addEventListener("click", importCsv);
   $("#btn-csv-cancel").addEventListener("click", () => $("#dialog-csv").close());
 
+  // Vendor / category detail popup
+  $("#btn-detail-close").addEventListener("click", () => $("#dialog-detail").close());
+
   // Delete transactions dialog
   $("#delete-scope-all").addEventListener("change", () => {
     $("#delete-range-fields").classList.add("hidden");
@@ -1630,6 +1692,7 @@ function wireEvents() {
     filters.categories.has(cat) ? filters.categories.delete(cat) : filters.categories.add(cat);
     chip.classList.toggle("selected");
     rerenderFiltered();
+    openCategoryDetail(cat);
   });
 
   // Vendor chips (delegated)
@@ -1640,6 +1703,7 @@ function wireEvents() {
     filters.vendors.has(vendor) ? filters.vendors.delete(vendor) : filters.vendors.add(vendor);
     chip.classList.toggle("selected");
     rerenderFiltered();
+    openVendorDetail(vendor);
   });
   $("#vendor-chips-toggle").addEventListener("click", () => {
     vendorChipsExpanded = !vendorChipsExpanded;

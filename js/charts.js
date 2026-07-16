@@ -5,6 +5,8 @@
 
 let categoryChart = null;
 let trendChart = null;
+let detailTrendChart = null;
+let detailBreakdownChart = null;
 
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -135,9 +137,108 @@ export function renderTrendChart(canvas, months, fmtMoney) {
   });
 }
 
+// Used by the vendor-detail popup — same shape/styling as the main trend
+// chart, but a separate Chart.js instance/canvas so opening it never
+// disturbs the dashboard's own trend chart underneath.
+export function renderVendorTrendChart(canvas, months, fmtMoney) {
+  baseOptions();
+  const labels = months.map((m) => m.label);
+  const spent = months.map((m) => m.spentCents / 100);
+  const primary = cssVar("--md-primary");
+  const gridColor = cssVar("--md-outline-variant");
+
+  if (detailTrendChart) detailTrendChart.destroy();
+  detailTrendChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Spent",
+        data: spent,
+        backgroundColor: primary,
+        borderRadius: 8,
+        borderSkipped: false,
+        maxBarThickness: 44,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600, easing: "easeOutQuart" },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 12 } } },
+        y: {
+          beginAtZero: true,
+          grid: { color: gridColor + "55" },
+          border: { display: false },
+          ticks: {
+            font: { size: 11 },
+            callback: (v) => (v >= 1000 ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "k" : v),
+          },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...tooltipStyle(),
+          callbacks: { label: (ctx) => " " + fmtMoney(Math.round(ctx.parsed.y * 100)) },
+        },
+      },
+    },
+  });
+}
+
+// Used by the category-detail popup — top vendors within that category,
+// same doughnut styling as the dashboard's category chart.
+export function renderVendorBreakdownChart(canvas, byVendor, fmtMoney) {
+  baseOptions();
+  const labels = Object.keys(byVendor);
+  const data = labels.map((l) => byVendor[l] / 100);
+  const palette = Object.values(CATEGORY_COLORS);
+  const colors = labels.map((_, i) => palette[i % palette.length]);
+
+  if (detailBreakdownChart) detailBreakdownChart.destroy();
+  detailBreakdownChart = new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderColor: cssVar("--md-surface-container-low"),
+        borderWidth: 3,
+        borderRadius: 6,
+        hoverOffset: 8,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "68%",
+      animation: { animateRotate: true, duration: 700, easing: "easeOutQuart" },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { usePointStyle: true, pointStyle: "circle", padding: 14, font: { size: 12 } },
+        },
+        tooltip: {
+          ...tooltipStyle(),
+          callbacks: {
+            label: (ctx) => {
+              const total = data.reduce((a, b) => a + b, 0);
+              const pct = total ? Math.round((ctx.parsed / total) * 100) : 0;
+              return ` ${fmtMoney(Math.round(ctx.parsed * 100))} (${pct}%)`;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 // Re-render with current CSS vars after a theme change.
 export function refreshTheme() {
-  for (const chart of [categoryChart, trendChart]) {
+  for (const chart of [categoryChart, trendChart, detailTrendChart, detailBreakdownChart]) {
     if (!chart) continue;
     chart.options.plugins.tooltip = { ...chart.options.plugins.tooltip, ...tooltipStyle() };
   }
@@ -149,6 +250,15 @@ export function refreshTheme() {
     trendChart.data.datasets[0].backgroundColor = cssVar("--md-primary");
     trendChart.options.scales.y.grid.color = cssVar("--md-outline-variant") + "55";
     trendChart.update("none");
+  }
+  if (detailTrendChart) {
+    detailTrendChart.data.datasets[0].backgroundColor = cssVar("--md-primary");
+    detailTrendChart.options.scales.y.grid.color = cssVar("--md-outline-variant") + "55";
+    detailTrendChart.update("none");
+  }
+  if (detailBreakdownChart) {
+    detailBreakdownChart.data.datasets[0].borderColor = cssVar("--md-surface-container-low");
+    detailBreakdownChart.update("none");
   }
   baseOptions();
 }
