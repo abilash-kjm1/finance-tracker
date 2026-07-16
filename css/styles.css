@@ -988,6 +988,13 @@ a { color: var(--md-primary); }
   .td-actions .icon-btn { opacity: 1; width: 34px; height: 34px; }
   .fab-label { display: none; }
   .fab { width: 56px; padding: 0; justify-content: center; border-radius: 16px; }
+
+  /* Top bar gets tight on narrow phones (5 icon buttons + the bank
+     switcher's text label) — drop the label and shrink to icon+caret
+     only, same idea as the FAB losing its text label above. */
+  .bank-switch-btn { padding: 0 8px; gap: 0; }
+  #bank-switch-label { display: none; }
+  .bank-switch-caret { margin-left: 0; }
 }
 
 @media (min-width: 681px) {

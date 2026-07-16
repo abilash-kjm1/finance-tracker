@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=58";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=58";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=58";
-import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=58";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=58";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=59";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=59";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=59";
+import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=59";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=59";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
