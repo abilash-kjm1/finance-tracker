@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=56";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=56";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=56";
-import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=56";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=56";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=57";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=57";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=57";
+import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=57";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=57";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -202,6 +202,8 @@ let aiHistory = []; // [{ role: "user"|"model", text }]
 let aiBusy = false;
 let snackbarTimer = null;
 let vendorChipsExpanded = false;
+let vendorChipSearch = "";
+let detailState = null; // { type: "vendor"|"category", name, years, selectedYear }
 // Rendering thousands of <tr> at once (e.g. "All time" on a large import)
 // is what actually freezes the browser — paginate so only one page of
 // rows ever hits the DOM.
@@ -482,13 +484,13 @@ function renderCategoryChips() {
 }
 
 function renderVendorChips() {
-  const { vendors, truncated } = topVendorsForPeriod();
+  const { vendors: allVendors, truncated } = topVendorsForPeriod();
   // Keep any currently-selected vendor visible even if it drops out of
   // the top list after a filter change, so the active state stays honest.
-  for (const v of filters.vendors) if (!vendors.includes(v)) vendors.push(v);
+  for (const v of filters.vendors) if (!allVendors.includes(v)) allVendors.push(v);
 
   const toggle = $("#vendor-chips-toggle");
-  toggle.classList.toggle("hidden", vendors.length === 0);
+  toggle.classList.toggle("hidden", allVendors.length === 0);
   toggle.querySelector(".chip-row-toggle-text").textContent = truncated
     ? `Vendors this period (top ${MAX_VENDOR_CHIPS} — run "Clean up vendor names" to consolidate more)`
     : "Vendors this period";
@@ -496,6 +498,10 @@ function renderVendorChips() {
   const expanded = vendorChipsExpanded || filters.vendors.size > 0;
   toggle.setAttribute("aria-expanded", String(expanded));
   $("#vendor-chips").classList.toggle("hidden", !expanded);
+  $("#vendor-chip-search-row").classList.toggle("hidden", !expanded);
+
+  const q = vendorChipSearch.toLowerCase();
+  const vendors = q ? allVendors.filter((v) => v.toLowerCase().includes(q)) : allVendors;
 
   $("#vendor-chips").innerHTML = vendors
     .map((v) => {
@@ -983,67 +989,79 @@ function renderCharts() {
 // Clicking a vendor or category chip opens an inline panel — right above
 // the transaction table, not a popup — so both the chart and the (already
 // filtered, since the chip click also toggles the filter) table are
-// visible together. Uses all transactions regardless of the current
-// filter/date scope, so the chart always shows the vendor/category's
-// full history, not just whatever period happens to be selected.
+// visible together. The chart is scoped to one year at a time (defaulting
+// to the current year) rather than dumping every year's data at once —
+// year tags above the chart are generated only for years that actually
+// have transactions, and switching years re-renders in place.
+function yearsWithData(txs) {
+  return [...new Set(txs.map((t) => t.date.slice(0, 4)))].sort();
+}
 
-// Builds one entry per calendar month from the earliest transaction given
-// through the current month — i.e. genuinely "all years", not a fixed
-// recent window. Labels include the year once the span crosses 12 months,
-// so multi-year history doesn't read as ambiguous repeating month names.
-function monthRangeSeries(txs, amountFor) {
-  if (!txs.length) return [];
-  const earliest = txs.reduce((min, t) => (t.date < min ? t.date : min), txs[0].date);
-  const [ey, em] = earliest.split("-").map(Number);
-  const now = new Date();
-  const months = [];
-  let y = ey, m = em - 1;
-  while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth())) {
-    months.push({ year: y, month: m });
-    m++;
-    if (m > 11) { m = 0; y++; }
-  }
-  const showYear = months.length > 12;
-  return months.map(({ year, month }) => {
-    const key = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const label = new Date(year, month, 1).toLocaleDateString("en-CA", { month: "short" });
-    return { key, label: showYear ? `${label} '${String(year).slice(2)}` : label, spentCents: amountFor(key) };
-  });
+function pickDefaultYear(years) {
+  const currentYear = String(new Date().getFullYear());
+  if (years.includes(currentYear)) return currentYear;
+  return years[years.length - 1] || currentYear;
+}
+
+function renderDetailYearChips(years, selectedYear) {
+  $("#detail-year-chips").innerHTML = years
+    .map((y) => `<button class="chip${y === selectedYear ? " selected" : ""}" data-year="${y}">${y}</button>`)
+    .join("");
 }
 
 function closeDetailPanel() {
   $("#detail-panel").classList.add("hidden");
+  detailState = null;
 }
 
-function openVendorDetail(vendor) {
-  const vendorTxs = transactions.filter((t) => t.vendor === vendor);
-  const spent = vendorTxs.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
-  const income = vendorTxs.filter((t) => t.type === "income").reduce((a, t) => a + t.cents, 0);
+function openVendorDetail(vendor, year) {
+  const allVendorTxs = transactions.filter((t) => t.vendor === vendor);
+  if (!allVendorTxs.length) return;
+  const years = yearsWithData(allVendorTxs);
+  const selectedYear = year || pickDefaultYear(years);
+  detailState = { type: "vendor", name: vendor, years, selectedYear };
+
+  const yearTxs = allVendorTxs.filter((t) => t.date.slice(0, 4) === selectedYear);
+  const spent = yearTxs.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
+  const income = yearTxs.filter((t) => t.type === "income").reduce((a, t) => a + t.cents, 0);
 
   $("#detail-title").textContent = vendor;
   $("#detail-stats").textContent =
-    `${vendorTxs.length} transaction${vendorTxs.length === 1 ? "" : "s"} · ${fmtMoney(spent)} spent` +
+    `${yearTxs.length} transaction${yearTxs.length === 1 ? "" : "s"} in ${selectedYear} · ${fmtMoney(spent)} spent` +
     (income ? ` · ${fmtMoney(income)} received` : "");
+  renderDetailYearChips(years, selectedYear);
 
   $("#detail-chart-trend").classList.remove("hidden");
   $("#detail-chart-breakdown").classList.add("hidden");
 
-  const months = monthRangeSeries(vendorTxs, (key) =>
-    vendorTxs.filter((t) => t.type === "expense" && monthKey(t.date) === key).reduce((a, t) => a + t.cents, 0)
-  );
+  const months = [];
+  for (let m = 0; m < 12; m++) {
+    const key = `${selectedYear}-${String(m + 1).padStart(2, "0")}`;
+    months.push({
+      key,
+      label: new Date(Number(selectedYear), m, 1).toLocaleDateString("en-CA", { month: "short" }),
+      spentCents: yearTxs.filter((t) => t.type === "expense" && monthKey(t.date) === key).reduce((a, t) => a + t.cents, 0),
+    });
+  }
   renderVendorTrendChart($("#detail-chart-trend"), months, fmtMoney);
   $("#detail-panel").classList.remove("hidden");
   $("#detail-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function openCategoryDetail(category) {
-  const catTxs = transactions.filter((t) => t.category === category && t.type === "expense");
+function openCategoryDetail(category, year) {
+  const allCatTxs = transactions.filter((t) => t.category === category && t.type === "expense");
+  const years = yearsWithData(allCatTxs);
+  const selectedYear = year || pickDefaultYear(years);
+  detailState = { type: "category", name: category, years, selectedYear };
+
+  const catTxs = allCatTxs.filter((t) => t.date.slice(0, 4) === selectedYear);
   const total = catTxs.reduce((a, t) => a + t.cents, 0);
 
   $("#detail-title").textContent = category;
   $("#detail-stats").textContent = catTxs.length
-    ? `${catTxs.length} transaction${catTxs.length === 1 ? "" : "s"} · ${fmtMoney(total)} spent`
-    : "No expenses in this category yet.";
+    ? `${catTxs.length} transaction${catTxs.length === 1 ? "" : "s"} in ${selectedYear} · ${fmtMoney(total)} spent`
+    : `No expenses in ${selectedYear}.`;
+  renderDetailYearChips(years, selectedYear);
 
   $("#detail-chart-trend").classList.add("hidden");
   $("#detail-chart-breakdown").classList.toggle("hidden", !catTxs.length);
@@ -1623,6 +1641,13 @@ function wireEvents() {
 
   // Vendor / category detail popup
   $("#btn-detail-close").addEventListener("click", closeDetailPanel);
+  $("#detail-year-chips").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip || !detailState) return;
+    const year = chip.dataset.year;
+    if (detailState.type === "vendor") openVendorDetail(detailState.name, year);
+    else openCategoryDetail(detailState.name, year);
+  });
 
   // Delete transactions dialog
   $("#delete-scope-all").addEventListener("change", () => {
@@ -1729,6 +1754,10 @@ function wireEvents() {
   });
   $("#vendor-chips-toggle").addEventListener("click", () => {
     vendorChipsExpanded = !vendorChipsExpanded;
+    renderVendorChips();
+  });
+  $("#vendor-chip-search").addEventListener("input", (e) => {
+    vendorChipSearch = e.target.value.trim();
     renderVendorChips();
   });
 

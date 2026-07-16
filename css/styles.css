@@ -394,6 +394,7 @@ a { color: var(--md-primary); }
 .field select option { background: var(--md-surface-container-high); color: var(--md-on-surface); }
 .field-search { flex: 1; min-width: 180px; }
 .field-search input { width: 100%; }
+.vendor-chip-search-row { max-width: 280px; height: 40px; margin: 2px 0 4px; }
 .field-label { font-size: 13px; color: var(--md-on-surface-variant); }
 .range-row .field { border-radius: 14px; }
 
@@ -856,7 +857,8 @@ a { color: var(--md-primary); }
 
 /* ---------- Vendor / category detail (inline, next to the table) ---------- */
 .detail-panel { padding: 16px; animation: card-in .3s cubic-bezier(.2,.8,.3,1) backwards; }
-.detail-panel #detail-stats { margin: 2px 0 12px; }
+.detail-panel #detail-stats { margin: 2px 0 10px; }
+.detail-panel #detail-year-chips { margin-bottom: 12px; }
 .detail-chart-wrap { height: 240px; }
 
 /* ---------- Ask AI ---------- */

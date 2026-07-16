@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:opsz,wght@17..18,400..700&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=56" />
+  <link rel="stylesheet" href="css/styles.css?v=57" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -173,6 +173,10 @@
           <span class="material-symbols-rounded chip-row-toggle-icon">chevron_right</span>
           <span class="chip-row-toggle-text">Vendors this period</span>
         </button>
+        <div class="field field-search vendor-chip-search-row hidden" id="vendor-chip-search-row">
+          <span class="material-symbols-rounded field-icon">search</span>
+          <input type="search" id="vendor-chip-search" placeholder="Search vendors…" aria-label="Search vendors" />
+        </div>
         <div class="chip-row hidden" id="vendor-chips" role="group" aria-label="Filter by vendor"></div>
       </section>
 
@@ -202,6 +206,7 @@
           <button type="button" id="btn-detail-close" class="icon-btn" aria-label="Close"><span class="material-symbols-rounded">close</span></button>
         </div>
         <p class="dialog-sub" id="detail-stats"></p>
+        <div class="chip-row" id="detail-year-chips" role="group" aria-label="Select year"></div>
         <div class="chart-wrap detail-chart-wrap">
           <canvas id="detail-chart-trend"></canvas>
           <canvas id="detail-chart-breakdown" class="hidden"></canvas>
@@ -464,6 +469,6 @@
     <button id="snackbar-action" class="snackbar-btn hidden">Undo</button>
   </div>
 
-  <script type="module" src="js/app.js?v=56"></script>
+  <script type="module" src="js/app.js?v=57"></script>
 </body>
 </html>
