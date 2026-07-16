@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=57";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=57";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=57";
-import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=57";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=57";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=58";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=58";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=58";
+import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=58";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=58";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -1210,6 +1210,16 @@ function applyBankToImportUI() {
   $("#menu-import-csv").lastChild.textContent = b.importLabel;
 }
 
+// Currency labels ("Amount (CAD)" vs "Amount (INR)") need to track
+// whichever bank is active, rather than being hardcoded to CIBC's CAD.
+function applyBankToCurrencyLabels() {
+  const b = BANKS[activeBank];
+  $("#tx-amount-label").textContent = `Amount (${b.currency})`;
+  $("#acc-balance-label").textContent = `Debit card balance (${b.currency})`;
+  $("#acc-limit-label").textContent = `Credit limit (${b.currency})`;
+  $("#acc-used-label").textContent = `Credit used so far (${b.currency})`;
+}
+
 let pendingCsvFile = null;
 
 function openCsvDialog() {
@@ -1564,6 +1574,7 @@ function switchBank(bankId) {
   loadRecurringCache();
   renderBankMenu();
   applyBankToImportUI();
+  applyBankToCurrencyLabels();
 
   backend.setBank(activeBank);
   unsubTx?.(); unsubSettings?.();
@@ -1821,6 +1832,7 @@ async function main() {
   updateMoneyFormatter();
   renderBankMenu();
   applyBankToImportUI();
+  applyBankToCurrencyLabels();
   loadRecurringCache();
   if (!isConfigured && !isDemo) {
     showScreen("setup");
