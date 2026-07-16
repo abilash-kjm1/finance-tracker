@@ -854,9 +854,10 @@ a { color: var(--md-primary); }
   max-height: 180px; overflow-y: auto;
 }
 
-/* ---------- Vendor / category detail popup ---------- */
-.dialog-detail { width: min(480px, calc(100vw - 24px)); }
-.detail-chart-wrap { height: 280px; }
+/* ---------- Vendor / category detail (inline, next to the table) ---------- */
+.detail-panel { padding: 16px; animation: card-in .3s cubic-bezier(.2,.8,.3,1) backwards; }
+.detail-panel #detail-stats { margin: 2px 0 12px; }
+.detail-chart-wrap { height: 240px; }
 
 /* ---------- Ask AI ---------- */
 .dialog-ai { width: min(560px, calc(100vw - 24px)); padding: 20px; }

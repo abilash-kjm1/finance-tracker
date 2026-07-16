@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=55";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=55";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=55";
-import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=55";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=55";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=56";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=56";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=56";
+import { renderCategoryChart, renderTrendChart, renderVendorTrendChart, renderVendorBreakdownChart, refreshTheme } from "./charts.js?v=56";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=56";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -979,12 +979,42 @@ function renderCharts() {
   renderTrendChart($("#chart-trend"), months, fmtMoney);
 }
 
-// ---------- Vendor / category detail popup ----------
-// Clicking a vendor or category chip opens a small popup with a chart
-// scoped to just that vendor/category — a monthly spending trend for a
-// vendor, or a top-vendors breakdown for a category. Uses all transactions
-// (not just the current filter/date scope), so the popup always shows the
-// full picture regardless of what's currently filtered on the dashboard.
+// ---------- Vendor / category detail (inline, next to the table) ----------
+// Clicking a vendor or category chip opens an inline panel — right above
+// the transaction table, not a popup — so both the chart and the (already
+// filtered, since the chip click also toggles the filter) table are
+// visible together. Uses all transactions regardless of the current
+// filter/date scope, so the chart always shows the vendor/category's
+// full history, not just whatever period happens to be selected.
+
+// Builds one entry per calendar month from the earliest transaction given
+// through the current month — i.e. genuinely "all years", not a fixed
+// recent window. Labels include the year once the span crosses 12 months,
+// so multi-year history doesn't read as ambiguous repeating month names.
+function monthRangeSeries(txs, amountFor) {
+  if (!txs.length) return [];
+  const earliest = txs.reduce((min, t) => (t.date < min ? t.date : min), txs[0].date);
+  const [ey, em] = earliest.split("-").map(Number);
+  const now = new Date();
+  const months = [];
+  let y = ey, m = em - 1;
+  while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth())) {
+    months.push({ year: y, month: m });
+    m++;
+    if (m > 11) { m = 0; y++; }
+  }
+  const showYear = months.length > 12;
+  return months.map(({ year, month }) => {
+    const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const label = new Date(year, month, 1).toLocaleDateString("en-CA", { month: "short" });
+    return { key, label: showYear ? `${label} '${String(year).slice(2)}` : label, spentCents: amountFor(key) };
+  });
+}
+
+function closeDetailPanel() {
+  $("#detail-panel").classList.add("hidden");
+}
+
 function openVendorDetail(vendor) {
   const vendorTxs = transactions.filter((t) => t.vendor === vendor);
   const spent = vendorTxs.filter((t) => t.type === "expense").reduce((a, t) => a + t.cents, 0);
@@ -998,21 +1028,12 @@ function openVendorDetail(vendor) {
   $("#detail-chart-trend").classList.remove("hidden");
   $("#detail-chart-breakdown").classList.add("hidden");
 
-  const months = [];
-  const now = new Date();
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    months.push({
-      key,
-      label: d.toLocaleDateString("en-CA", { month: "short" }),
-      spentCents: vendorTxs
-        .filter((t) => t.type === "expense" && monthKey(t.date) === key)
-        .reduce((a, t) => a + t.cents, 0),
-    });
-  }
+  const months = monthRangeSeries(vendorTxs, (key) =>
+    vendorTxs.filter((t) => t.type === "expense" && monthKey(t.date) === key).reduce((a, t) => a + t.cents, 0)
+  );
   renderVendorTrendChart($("#detail-chart-trend"), months, fmtMoney);
-  $("#dialog-detail").showModal();
+  $("#detail-panel").classList.remove("hidden");
+  $("#detail-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function openCategoryDetail(category) {
@@ -1035,7 +1056,8 @@ function openCategoryDetail(category) {
     );
     renderVendorBreakdownChart($("#detail-chart-breakdown"), topVendors, fmtMoney);
   }
-  $("#dialog-detail").showModal();
+  $("#detail-panel").classList.remove("hidden");
+  $("#detail-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function renderAll() {
@@ -1600,7 +1622,7 @@ function wireEvents() {
   $("#btn-csv-cancel").addEventListener("click", () => $("#dialog-csv").close());
 
   // Vendor / category detail popup
-  $("#btn-detail-close").addEventListener("click", () => $("#dialog-detail").close());
+  $("#btn-detail-close").addEventListener("click", closeDetailPanel);
 
   // Delete transactions dialog
   $("#delete-scope-all").addEventListener("change", () => {
