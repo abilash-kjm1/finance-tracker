@@ -2,11 +2,11 @@
 // Finance Tracker — main app: state, rendering, filters, dialogs.
 // ============================================================
 
-import { createBackend, isConfigured, isDemo } from "./firebase.js?v=53";
-import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=53";
-import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=53";
-import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=53";
-import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=53";
+import { createBackend, isConfigured, isDemo } from "./firebase.js?v=54";
+import { parseCibcCsv, exportJson, guessCategory as guessCategoryCibc, cleanVendor as cleanVendorCibc } from "./csv.js?v=54";
+import { parseHdfcPdf, guessCategoryHdfc, cleanVendorHdfc, PdfPasswordRequiredError } from "./hdfc.js?v=54";
+import { renderCategoryChart, renderTrendChart, refreshTheme } from "./charts.js?v=54";
+import { askGemini, hasGeminiKey, setGeminiKey, clearGeminiKey, askGeminiRecurringPrediction } from "./gemini.js?v=54";
 
 // ---------- Banks ----------
 // Two fully separate banks, switchable from the top bar. Each has its own
@@ -560,6 +560,73 @@ function detectRecurringCharges() {
   return predictions.slice(0, 8);
 }
 
+// ---------- Spending anomaly detection ----------
+// Flags a vendor's most recent charge when it's noticeably higher than
+// what that vendor has historically charged. Only considers vendors
+// whose past amounts were already fairly consistent (e.g. a recharge,
+// subscription, or bill) — naturally variable vendors like restaurants
+// or general shopping would otherwise trigger constant false alarms.
+function detectSpendingAnomalies() {
+  const byVendor = new Map();
+  for (const t of transactions) {
+    if (t.type !== "expense") continue;
+    if (!byVendor.has(t.vendor)) byVendor.set(t.vendor, []);
+    byVendor.get(t.vendor).push(t);
+  }
+
+  const today = new Date(todayStr() + "T00:00:00");
+  const anomalies = [];
+
+  for (const [vendor, txs] of byVendor) {
+    if (txs.length < 4) continue; // need enough history plus the latest charge
+    const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date));
+    const latest = sorted[sorted.length - 1];
+    const daysSinceLatest = Math.round((today - new Date(latest.date + "T00:00:00")) / 86400000);
+    if (daysSinceLatest > 45) continue; // only surface recent activity
+
+    const history = sorted.slice(0, -1);
+    const meanAmount = history.reduce((a, t) => a + t.cents, 0) / history.length;
+    const variance = history.reduce((a, t) => a + (t.cents - meanAmount) ** 2, 0) / history.length;
+    const coefficientOfVariation = Math.sqrt(variance) / meanAmount;
+    if (coefficientOfVariation > 0.25) continue; // amounts already vary a lot — too noisy to flag
+
+    const pctAbove = (latest.cents - meanAmount) / meanAmount;
+    if (pctAbove < 0.3) continue; // not meaningfully higher than usual
+
+    anomalies.push({
+      vendor,
+      date: latest.date,
+      cents: latest.cents,
+      usualCents: Math.round(meanAmount),
+      pct: Math.round(pctAbove * 100),
+    });
+  }
+
+  anomalies.sort((a, b) => b.date.localeCompare(a.date));
+  return anomalies.slice(0, 8);
+}
+
+function renderAnomalies() {
+  const list = $("#anomaly-list");
+  if (!list) return;
+  const anomalies = detectSpendingAnomalies();
+  if (!anomalies.length) {
+    list.innerHTML = `<p class="recurring-empty">No unusual charges detected — everything's tracking close to normal.</p>`;
+    return;
+  }
+  list.innerHTML = anomalies
+    .map(
+      (a) => `<div class="anomaly-item">
+        <span class="material-symbols-rounded anomaly-icon">error</span>
+        <div class="anomaly-body">
+          <span class="anomaly-vendor">${escapeHtml(a.vendor)}</span>
+          <span class="anomaly-detail">${fmtMoney(a.cents)} on ${shortDate(a.date)} — usually ~${fmtMoney(a.usualCents)} · ${a.pct}% higher</span>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
 // Shared row template for both the local heuristic and AI-parsed
 // predictions, so they always look identical regardless of source.
 // Groups predictions into "This month" / "Next month" / "Later" and
@@ -922,6 +989,7 @@ function renderAll() {
   renderCalendar();
   renderDayPanel();
   renderRecurringCharges();
+  renderAnomalies();
 
   // Kick off the AI refresh check once per session (respects the 12h
   // cache internally) — not on every renderAll() call, which fires on

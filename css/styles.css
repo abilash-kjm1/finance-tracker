@@ -650,6 +650,22 @@ a { color: var(--md-primary); }
 .recurring-card-item.bucket-next { background: #ff985c; color: #3a1a00; }
 .recurring-card-item.bucket-later { background: var(--md-surface-container-high); color: var(--md-on-surface); }
 .recurring-card-item.overdue { background: var(--md-error-container); color: var(--md-on-error-container); }
+
+.anomaly-card { padding: 16px; }
+.anomaly-list { display: flex; flex-direction: column; gap: 10px; }
+.anomaly-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+  animation: row-in .25s ease backwards;
+}
+.anomaly-icon { flex: none; font-size: 20px; margin-top: 1px; }
+.anomaly-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.anomaly-vendor { font-size: 13.5px; font-weight: 600; }
+.anomaly-detail { font-size: 12px; opacity: .9; font-variant-numeric: tabular-nums; }
+
 .calendar-card { padding: 16px; }
 .calendar-header { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
 .calendar-month-label { flex: 1; text-align: center; font-size: 14.5px; font-weight: 500; }
